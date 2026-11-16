@@ -1,0 +1,150 @@
+# This repo's release. Pushing a strict semver tag (vMAJOR.MINOR.PATCH, no leading zeros) checks that the
+# tagged commit is on main and passes the same checks as CI (typecheck, tests, dist/ up to date), then
+# creates the GitHub Release with generated notes and moves the major tag (v1 for v1.x.y) to the same
+# commit. A failed check stops the run before anything is written.
+#
+# The major tag only moves when the pushed tag is the highest semver of its major, so a backport never
+# moves it backwards. The Release is marked latest only for the highest tag of all.
+#
+# GITHUB_TOKEN cannot point a ref at a commit that changes .github/workflows/, which most releases here
+# do. With the repository variable RELEASE_APP_CLIENT_ID set, the major tag moves with a GitHub App token
+# instead (Contents and Workflows: read and write); its key is the secret RELEASE_APP_KEY of the
+# environment `release`, limited to tags v*. Without it, the job tries GITHUB_TOKEN and, on failure,
+# prints the manual command.
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+      major: ${{ steps.tag.outputs.major }}
+    steps:
+      # Full history and every branch, for the ancestry check against main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Tag e main
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error title=Release::a tag $TAG não é semver estrito (vMAJOR.MINOR.PATCH, sem zero à esquerda)."
+            exit 1
+          fi
+          sha=$(git rev-parse "refs/tags/$TAG^{commit}")
+          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/main; then
+            echo "::error title=Release::o commit $sha da tag $TAG não está no main."
+            exit 1
+          fi
+          {
+            echo "sha=$sha"
+            echo "major=v${BASH_REMATCH[1]}"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          # No cache on a release: a cache written by a PR run must not feed what gets published.
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: dist/ em dia com src/
+        run: npm run check:dist
+
+  publish:
+    needs: verify
+    # One release at a time, so two tags cannot race on the major tag. A run waiting here is cancelled
+    # if a newer one queues behind it (GitHub keeps one pending run per group): re-run it.
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    # An empty name means no environment. deployment: false reads its secrets without a deployment.
+    environment:
+      name: ${{ vars.RELEASE_APP_CLIENT_ID != '' && 'release' || '' }}
+      deployment: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+      SHA: ${{ needs.verify.outputs.sha }}
+      MAJOR: ${{ needs.verify.outputs.major }}
+    steps:
+      - name: Token do App
+        id: app
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
+      # The tag may have moved since verify ran (or this is a re-run of an old run): never publish a
+      # commit that was not checked.
+      - name: Tag ainda no commit conferido
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')
+          if [ "${ref%% *}" = tag ]; then
+            current=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/${ref#* }" --jq .object.sha)
+          else
+            current=${ref#* }
+          fi
+          if [ "$current" != "$SHA" ]; then
+            echo "::error title=Release::a tag $TAG aponta para $current, não para o commit conferido $SHA."
+            exit 1
+          fi
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null 2>&1; then
+            echo "A release $TAG já existe." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          highest=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v" --jq '.[].ref | ltrimstr("refs/tags/")' \
+            | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -n 1)
+          latest=false
+          [ "$TAG" = "$highest" ] && latest=true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --latest="$latest"
+          echo "Release $TAG criada (latest: $latest)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tag da major
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+        run: |
+          highest=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$MAJOR." --jq '.[].ref | ltrimstr("refs/tags/")' \
+            | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -n 1)
+          if [ "$TAG" != "$highest" ]; then
+            echo "$MAJOR fica onde está: $highest é maior que $TAG." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$MAJOR" --jq .object.sha 2> /dev/null); then
+            if [ "$current" = "$SHA" ]; then
+              echo "$MAJOR já está em $SHA." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            moved=$(gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$MAJOR" -f sha="$SHA" -F force=true > /dev/null && echo yes || echo no)
+          else
+            moved=$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$MAJOR" -f sha="$SHA" > /dev/null && echo yes || echo no)
+          fi
+          if [ "$moved" != yes ]; then
+            echo "::error title=Release::não deu para mover $MAJOR para $SHA. Um commit que muda .github/workflows/ precisa do App (RELEASE_APP_CLIENT_ID). À mão: git tag -f $MAJOR $TAG && git push -f origin $MAJOR"
+            exit 1
+          fi
+          echo "$MAJOR movida para $SHA ($TAG)." >> "$GITHUB_STEP_SUMMARY"
