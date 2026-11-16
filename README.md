@@ -238,6 +238,26 @@ Opcional, e lido do **branch base** do PR: um PR não consegue liberar as própr
 
 O cspell (10.4.0) e o dicionário pt-BR são fixos pelo `dist/identifiers/package-lock.json`, com hash de integridade, e sobem por PR aqui. Um run de PR leva poucos segundos depois da instalação.
 
+## Clones locais em dia (`scripts/repo-sync.sh`)
+
+Mantém os clones de uma máquina alinhados com o remoto, sem nunca mexer em trabalho em andamento. A cada execução, pergunta a cada remoto para onde apontam as refs (`git ls-remote`, sem baixar nada), faz `fetch --all --prune` só nos repos em que algo mudou e avança por fast-forward toda branch local que está **só atrás** do upstream. Rodando a cada 60 s, um merge chega à máquina em cerca de um minuto. A cada `REPO_SYNC_FULL_EVERY` segundos (padrão 600), uma passada completa busca todos de novo e tenta outra vez o que tinha sido pulado. Os repos rodam 8 de cada vez (`REPO_SYNC_JOBS`). O resto fica como está e vai para o log:
+
+- branch com commits locais que o remoto não tem;
+- branch aberta numa worktree ligada (como as de agentes);
+- branch em checkout cujos arquivos não commitados seriam sobrescritos (o `merge --ff-only` para antes de tocar em qualquer coisa);
+- repo com rebase, merge, cherry-pick ou bisect em andamento.
+
+Nunca roda stash, reset, rebase ou force.
+
+```sh
+scripts/repo-sync.sh --dry-run      # mostra o que faria
+scripts/repo-sync.sh                # roda uma vez
+scripts/repo-sync.sh install 60     # macOS: agente do launchd a cada 60 s (o padrão)
+scripts/repo-sync.sh uninstall
+```
+
+A lista de repos fica fora deste repo, em `~/.config/repo-sync/repos` (ou `REPO_SYNC_CONFIG`): um caminho ou glob por linha, `#` para comentário. Só contam raízes de clone (pasta com `.git`), então um glob como `~/code/*/*` pega clones novos sozinho. O log fica em `~/Library/Logs/repo-sync.log` no macOS (ou `REPO_SYNC_LOG`) e registra cada avanço e cada pulo ou falha uma vez, até mudar. Com `REPO_SYNC_NOTIFY=1` no `install`, cada pulo ou falha nova também vira notificação do macOS.
+
 ## Desenvolvimento
 
 ```sh
