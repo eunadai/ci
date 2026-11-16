@@ -55,3 +55,14 @@ jobs:
     uses: ./.github/workflows/seguranca.yml # zizmor: ignore[self-repository]
     with:
       ci-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  # End-to-end test of identifiers.yml on this repo's own PRs, warn-only, with the bundle from the
+  # commit under test. This repo's older names are in Portuguese: they exist on the base and do not count.
+  identifiers:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      statuses: write
+    uses: ./.github/workflows/identifiers.yml # zizmor: ignore[self-repository]
+    with:
+      ci-ref: ${{ github.event.pull_request.head.sha }}

@@ -1,0 +1,74 @@
+# Reusable check that new code names things in English: on a PR, every identifier the diff adds
+# (in code, keys and routes without spaces, and the names of new files) is split into words, and a
+# word cspell does not know in English but knows in pt-BR is reported. Comments, prose strings, i18n
+# files, docs and lockfiles are never checked, and an identifier the base already has is legacy and
+# does not count. It writes the commit status «identifiers» on the PR head and, by default, only
+# warns: `block: true` makes a new finding fail. `.github/identifiers.json` (extra words, ignored
+# globs) is read from the base branch, so a PR cannot allow its own words.
+# The caller grants: contents read, statuses write.
+#
+# cspell and its dictionaries are pinned by dist/identifiers/package-lock.json (integrity hashes).
+name: Identificadores em inglês
+
+on:
+  workflow_call:
+    inputs:
+      block:
+        description: true para um identificador novo em português reprovar; false só avisa
+        type: boolean
+        default: false
+      ci-ref:
+        description: Ref do nadairafael/ci de onde vem o dist/identifiers.mjs
+        type: string
+        default: v1
+      timeout:
+        description: Minutos do job
+        type: number
+        default: 5
+
+jobs:
+  identifiers:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout }}
+    steps:
+      - name: Evento
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -z "$HEAD_SHA" ]; then
+            echo "::error title=Identificadores::este check roda só em pull_request: ele olha o que o diff adiciona."
+            exit 1
+          fi
+
+      # The head itself, not the merge commit, with history for the merge base and the base's files.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: projeto
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nadairafael/ci
+          ref: ${{ inputs.ci-ref }}
+          path: .identifiers-ci
+          sparse-checkout: dist
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.22.3
+
+      - name: Instalar cspell
+        working-directory: .identifiers-ci/dist/identifiers
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Identificadores
+        working-directory: projeto
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BLOCK: ${{ inputs.block }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
+          CSPELL_DIR: ${{ github.workspace }}/.identifiers-ci/dist/identifiers
+        run: node ../.identifiers-ci/dist/identifiers.mjs
