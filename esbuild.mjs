@@ -5,6 +5,7 @@ import { build } from "esbuild"
 const entradas = [
   ["src/main.ts", "dist/portao.mjs"],
   ["src/seguranca/main.ts", "dist/seguranca.mjs"],
+  ["src/identifiers/main.ts", "dist/identifiers.mjs"],
 ]
 
 for (const [entrada, saida] of entradas) {

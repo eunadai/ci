@@ -1,6 +1,6 @@
 # ci
 
-Portão de PR, CI e checagem de segurança reutilizáveis para os projetos do Nadai.
+Portão de PR, CI, checagem de segurança e de identificadores em inglês reutilizáveis para os projetos do Nadai.
 
 O portão roda nas máquinas do GitHub, responde em segundos e escreve o motivo **no próprio PR**: o número, o limite e o que fazer. Ele também grava o commit status `portao` no head do PR, que é o contexto que um ruleset pode exigir.
 
@@ -177,13 +177,74 @@ Um job em `ubuntu-latest`, fora da fila do runner self-hosted. Estimativa por ru
 
 As versões das ferramentas são fixas no `seguranca.yml` (os binários conferidos por SHA-256) e sobem por PR aqui.
 
+## Identificadores em inglês (`identifiers.yml`)
+
+Confere que o código novo dá nomes em inglês: componentes, variáveis, funções, tipos, arquivos, pastas, rotas, chaves de i18n, design tokens e eventos. Num PR, cada identificador que o diff **adiciona** é quebrado em palavras (camelCase, PascalCase, snake_case, kebab-case, dot.case), e uma palavra que o cspell não conhece em inglês mas conhece em pt-BR vira achado. A comparação ignora acento: `cartao` e `cartão` contam igual.
+
+O que nunca entra:
+
+- **comentários e strings com espaço** (texto, mensagem de log): o idioma deles é regra de cada projeto. Uma string sem espaço (chave, rota, nome de evento) é conferida;
+- **arquivos de i18n, docs, markdown, lockfiles, gerados** (`locales/`, `i18n/`, `*.po`, `dist/`, `*.lock` e afins);
+- **código legado**: um identificador que já existe na base (no código ou no nome de um arquivo) não conta, então chamar `calcularTotal()` de uma linha nova não é achado, mas criar `calcularFrete()` é;
+- **palavra que o cspell não conhece em nenhum dos dois** (sigla, jargão, nome de marca): ela não é tratada como português.
+
+Termos do domínio sem tradução já passam: `cpf`, `cnpj`, `cep`, `pix`, `boleto`, `nfe`, `nfse`. O resultado vai para o summary, para anotações nas linhas e para o commit status **`identifiers`** no head do PR. Por padrão, **só avisa**; com `block: true`, um identificador novo em português dá `failure`.
+
+Criar `.github/workflows/identifiers.yml` no projeto:
+
+```yaml
+name: Identificadores
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+concurrency:
+  group: identifiers-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  identifiers:
+    permissions:
+      contents: read
+      statuses: write
+    uses: nadairafael/ci/.github/workflows/identifiers.yml@v1
+    # with:
+    #   block: true
+```
+
+Comece só avisando. Quando a lista de palavras do projeto estabilizar, ligue `block: true` e exija o contexto **`identifiers`** num ruleset.
+
+| Input | Padrão | O que faz |
+|---|---|---|
+| `block` | `false` | `false`: os achados só avisam. `true`: identificador novo em português (ou o check que não rodou) reprova. |
+| `ci-ref` | `v1` | A ref deste repo de onde vêm o `dist/identifiers.mjs` e o cspell. |
+| `timeout` | `5` | Minutos do job. |
+
+### Palavras e caminhos do projeto (`.github/identifiers.json`)
+
+Opcional, e lido do **branch base** do PR: um PR não consegue liberar as próprias palavras. Uma palavra nova do domínio entra por um PR antes (ou no mesmo PR, só avisando).
+
+```json
+{
+  "words": ["frete", "lojista"],
+  "ignore": ["legacy/**", "supabase/migrations/**"]
+}
+```
+
+| Campo | O que faz |
+|---|---|
+| `words` | Palavras que passam, além dos termos do domínio acima (sem diferença de caixa ou acento). |
+| `ignore` | Globs que não são conferidos, somados ao padrão. |
+
+O cspell (10.4.0) e o dicionário pt-BR são fixos pelo `dist/identifiers/package-lock.json`, com hash de integridade, e sobem por PR aqui. Um run de PR leva poucos segundos depois da instalação.
+
 ## Desenvolvimento
 
 ```sh
 npm ci
 npm test            # vitest + @effect/vitest
 npm run typecheck
-npm run build       # gera dist/portao.mjs e dist/seguranca.mjs (commitados)
+npm run build       # gera dist/portao.mjs, dist/seguranca.mjs e dist/identifiers.mjs (commitados)
 ```
 
 O `dist/` é commitado, e o CI falha se ele estiver desatualizado em relação a `src/`. Para lançar uma versão: `git tag v1.x.y`, depois mover a tag `v1` (`git tag -f v1 && git push -f origin v1`).

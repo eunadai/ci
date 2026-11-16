@@ -1,0 +1,174 @@
+// Pure: the identifiers a PR adds. It reads the unified diff (-U0), keeps only added lines, drops
+// comments and prose strings, and splits what is left into identifiers and their words. Comments and
+// prose follow each project's language rules, so they are never checked.
+import { casaAlgum } from "../glob.js"
+
+// An identifier the PR added, with where it first shows up.
+export interface Occurrence {
+  readonly identifier: string
+  readonly words: ReadonlyArray<string>
+  readonly file: string
+  readonly line: number
+}
+
+// Never checked: prose, copy (i18n), lockfiles, generated and vendored files.
+export const DEFAULT_IGNORE: ReadonlyArray<string> = [
+  "docs/**",
+  "**/*.{md,mdx,txt,rst,adoc}",
+  "**/{CHANGELOG,LICENSE,NOTICE}*",
+  ".changeset/**",
+  "**/{locales,locale,i18n,lang,translations,messages}/**",
+  "**/*.{po,pot,xliff,xlf,strings,stringsdict,arb}",
+  "**/{package-lock.json,npm-shrinkwrap.json,pnpm-lock.yaml,yarn.lock,bun.lock,bun.lockb}",
+  "**/*.lock",
+  "**/{dist,build,out,coverage,vendor,node_modules,generated,__generated__}/**",
+  "**/*.{min.js,min.css,map,snap,svg,csv,tsv}",
+  "**/*.generated.*",
+]
+
+// Words that are not English but have no natural translation: Brazilian domain terms.
+export const DEFAULT_WORDS: ReadonlyArray<string> = ["cpf", "cnpj", "cep", "pix", "boleto", "nfe", "nfse"]
+
+// cspell's own minimum: shorter words are never reported.
+export const MIN_WORD_LENGTH = 4
+
+export interface AddedLine {
+  readonly file: string
+  readonly line: number
+  readonly text: string
+}
+
+// The added lines of a `git diff -U0` and the files it creates. Inside a hunk, `old`/`new` count the
+// lines left, so an added line that starts with "++ " is never taken for the "+++ " header.
+export const parseDiff = (diff: string): { readonly lines: ReadonlyArray<AddedLine>; readonly newFiles: ReadonlyArray<string> } => {
+  const lines: Array<AddedLine> = []
+  const newFiles: Array<string> = []
+  let file = ""
+  let created = false
+  let old = 0
+  let added = 0
+  let n = 0
+  for (const raw of diff.split("\n")) {
+    if (old > 0 || added > 0) {
+      if (raw.startsWith("-")) old--
+      else if (raw.startsWith("+")) {
+        if (file !== "") lines.push({ file, line: n, text: raw.slice(1) })
+        n++
+        added--
+      }
+      continue
+    }
+    if (raw.startsWith("diff --git ")) created = false
+    else if (raw.startsWith("new file mode") || raw.startsWith("rename to ")) created = true
+    else if (raw.startsWith("+++ ")) {
+      file = raw === "+++ /dev/null" ? "" : raw.slice(6)
+      if (created && file !== "") newFiles.push(file)
+    } else if (raw.startsWith("@@ ")) {
+      const m = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(raw)
+      if (m) {
+        old = m[1] === undefined ? 1 : Number(m[1])
+        n = Number(m[2])
+        added = m[3] === undefined ? 1 : Number(m[3])
+      }
+    }
+  }
+  return { lines, newFiles }
+}
+
+// The closing delimiter of a block comment (or docstring) still open at the end of a line, if any.
+type Block = "" | "*/" | "-->" | '"""' | "'''"
+
+const OPENERS: ReadonlyArray<readonly [string, Block]> = [["/*", "*/"], ["<!--", "-->"], ['"""', '"""'], ["'''", "'''"]]
+
+// One line without its comments and prose strings. A string with whitespace is prose (copy, a log
+// message) and goes; a string without whitespace is a key, a route or an event name, and stays.
+export const code = (text: string, block: Block): { readonly text: string; readonly block: Block } => {
+  let out = ""
+  let open = block
+  let i = 0
+  while (i < text.length) {
+    if (open !== "") {
+      const j = text.indexOf(open, i)
+      if (j === -1) return { text: out, block: open }
+      i = j + open.length
+      open = ""
+      out += " "
+      continue
+    }
+    const opener = OPENERS.find(([o]) => text.startsWith(o, i))
+    const c = text[i]!
+    if (opener) {
+      open = opener[1]
+      i += opener[0].length
+    } else if (text.startsWith("//", i) || /^(?:#|--\s)/.test(text.slice(i)) && (i === 0 || /\s/.test(text[i - 1]!))) {
+      return { text: out, block: "" }
+    } else if (c === '"' || c === "'" || c === "`") {
+      let j = i + 1
+      while (j < text.length && text[j] !== c) j += text[j] === "\\" ? 2 : 1
+      const inner = text.slice(i + 1, j)
+      out += /\s/.test(inner) ? " " : ` ${inner} `
+      i = j + 1
+    } else {
+      out += c
+      i++
+    }
+  }
+  return { text: out, block: open }
+}
+
+// camelCase, PascalCase, snake_case, kebab-case and dot.case into lower-case words.
+export const splitWords = (identifier: string): ReadonlyArray<string> =>
+  identifier
+    .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
+    .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2")
+    .split(/[^\p{L}]+/u)
+    .map((w) => w.toLowerCase())
+    .filter((w) => w.length >= MIN_WORD_LENGTH)
+
+const YAML = /\.ya?ml$/
+const YAML_PROSE = /^(\s*(?:-\s+)?[\w.-]+:\s+)(?![|>"'])(.*\s.*)$/
+
+const YAML_LABEL = /^(\s*(?:-\s+)?(?:name|title|description|summary):\s+)(?![|>]).*$/
+
+// An unquoted YAML value with whitespace is prose, like a string with whitespace, and goes. So does
+// the value of a label key (name, title, description): it is text a person reads.
+export const yamlCode = (text: string): string =>
+  text
+    .replace(YAML_LABEL, "$1")
+    .replace(YAML_PROSE, (_, key: string, value: string) => value.includes("${{") ? `${key}${value}` : key)
+
+const IDENTIFIER = /[\p{L}_$][\p{L}\p{N}_$]*(?:-[\p{L}\p{N}_$]+)*/gu
+
+// The first occurrence of each identifier the PR adds, in its lines and in the names of the files it
+// creates. Files matching `ignore` (the defaults plus the project's) are skipped.
+export const occurrences = (diff: string, ignore: ReadonlyArray<string>): ReadonlyArray<Occurrence> => {
+  const skip = casaAlgum([...DEFAULT_IGNORE, ...ignore])
+  const { lines, newFiles } = parseDiff(diff)
+  const seen = new Map<string, Occurrence>()
+  const add = (identifier: string, file: string, line: number) => {
+    if (seen.has(identifier)) return
+    const words = splitWords(identifier)
+    if (words.length > 0) seen.set(identifier, { identifier, words, file, line })
+  }
+  for (const f of newFiles) {
+    if (skip(f)) continue
+    for (const segment of f.split("/")) add(segment.replace(/\..*$/, ""), f, 1)
+  }
+  let file = ""
+  let prev = -1
+  let block: Block = ""
+  for (const l of lines) {
+    if (skip(l.file)) continue
+    // A block comment only carries over between consecutive added lines of the same file.
+    if (l.file !== file || l.line !== prev + 1) block = ""
+    file = l.file
+    prev = l.line
+    const c = code(YAML.test(l.file) ? yamlCode(l.text) : l.text, block)
+    block = c.block
+    for (const m of c.text.matchAll(IDENTIFIER)) add(m[0], l.file, l.line)
+  }
+  return [...seen.values()]
+}
+
+// Words allowed by the defaults and the project's config, compared without case or accents.
+export const normalize = (w: string): string => w.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
