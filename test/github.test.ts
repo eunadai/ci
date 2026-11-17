@@ -301,7 +301,7 @@ it.effect("lerConfig com 404 e sonda 403 diz qual permissão falta", () => {
 it.effect("gravarComentario ignora o marcador num comentário de outro autor", () => {
   const { layer, chamadas } = comRotas({
     "GET /repos/o/r/issues/1/comments?per_page=100&page=1": {
-      status: 200, json: [{ id: 9, body: `${MARCADOR}\nfalso`, user: { login: "alguem" } }],
+      status: 200, json: [{ id: 9, body: `${MARCADOR}\nfalso`, user: { login: "someone" } }],
     },
     "POST /repos/o/r/issues/1/comments": { status: 201, json: {} },
   })
