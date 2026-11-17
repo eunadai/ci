@@ -205,7 +205,7 @@ it.effect("dispatch sem sha fora do branch do PR: pede o sha e não grava nada",
     expect(m.status).toEqual([])
     expect(m.comentarios).toEqual([])
     expect(m.log).toContain(
-      "::error title=Portão::O disparo não trouxe o input sha, e o commit do run (mainsha) não é o head do PR: dispare com -f sha=headsha.",
+      "::error title=Portão::O disparo não trouxe o input sha, e o commit do run (mainsha) não é o head do PR: dispare com -f sha=headsha (ou, num caller sem o input sha, dispare no branch do PR).",
     )
   }).pipe(Effect.provide(m.layer))
 })
@@ -223,7 +223,7 @@ it.effect("dispatch com o App sem sha, PR de fork cujo branch se chama main: ped
     expect(m.status).toEqual([])
     expect(m.comentarios).toEqual([])
     expect(m.log).toContain(
-      "::error title=Portão::O disparo não trouxe o input sha, e o commit do run (mainsha) não é o head do PR: dispare com -f sha=headsha.",
+      "::error title=Portão::O disparo não trouxe o input sha, e o commit do run (mainsha) não é o head do PR: dispare com -f sha=headsha (ou, num caller sem o input sha, dispare no branch do PR).",
     )
   }).pipe(Effect.provide(m.layer))
 })

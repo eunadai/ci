@@ -68,7 +68,7 @@ export const programa = (amb: Ambiente): Effect.Effect<{ readonly ok: boolean },
     if (amb.evento === "workflow_dispatch") {
       const onPrBranch = !amb.statusFromApp && amb.runRef === `refs/heads/${pr.head.ref}`
       if (amb.prSha === undefined && amb.sha !== pr.head.sha && !onPrBranch) {
-        const motivo = `O disparo não trouxe o input sha, e o commit do run (${amb.sha}) não é o head do PR: dispare com -f sha=${pr.head.sha}.`
+        const motivo = `O disparo não trouxe o input sha, e o commit do run (${amb.sha}) não é o head do PR: dispare com -f sha=${pr.head.sha} (ou, num caller sem o input sha, dispare no branch do PR).`
         return yield* publicar(amb, falhaSemPr(motivo), undefined, undefined, "")
       }
       if (amb.statusFromApp && amb.runRef !== `refs/heads/${pr.base.ref}`) {

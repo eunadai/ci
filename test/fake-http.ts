@@ -11,8 +11,8 @@ export interface Chamada {
 type Resposta = { readonly status: number; readonly json?: unknown }
 
 // A fake HttpClient that answers by "METHOD path?query" (path relative to the API root) and records
-// every request. An unknown route answers 599 so a test sees which call it did not expect.
-// An unknown GET route answers 599, which pedir retries, so it shows up as a TestClock warning followed by vitest's timeout.
+// every request. An unknown route answers 599, which pedir retries for GETs, so a test sees
+// the call it did not expect as a TestClock warning followed by vitest's timeout.
 export const httpFalso = (api: string, rotas: Record<string, Resposta | ((corpo: unknown) => Resposta)>) => {
   const chamadas: Array<Chamada> = []
   const layer = Layer.succeed(

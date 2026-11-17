@@ -69,10 +69,10 @@ const { ok } = await Effect.runPromise(
     inBase: (identifiers) =>
       Effect.try({
         try: () => {
-          const r = run("git", ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"])
+          const r = run("git", ["-c", "core.quotePath=false", "grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"])
           if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr.trim())
           const hits = [...parseGrep(r.stdout, mergeBase)]
-          for (const path of git("ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
+          for (const path of git("-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
             for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path })
           }
           const wanted = new Set(identifiers)

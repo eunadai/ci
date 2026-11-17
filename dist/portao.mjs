@@ -28072,8 +28072,8 @@ var githubLive = (acesso) => Layer_exports.effect(
           Effect_exports.flatMap(Option_exports.match({
             // A 404 is "no config" only if the token can read the repo's contents: a token without
             // contents access also gets 404, and must not turn every rule off silently. The probe
-            // reads the base commit, which needs contents: read (the repo itself only needs metadata).
-            onNone: () => pedir("GET", `/repos/${acesso.repo}/commits/${baseSha}`).pipe(
+            // reads the base commit object (no diff), which needs contents: read (the repo itself only needs metadata).
+            onNone: () => pedir("GET", `/repos/${acesso.repo}/git/commits/${baseSha}`).pipe(
               Effect_exports.catchTag("ErroApi", onDenied),
               Effect_exports.flatMap(Option_exports.match({
                 onNone: () => Effect_exports.fail(noReadAccess),
@@ -28215,7 +28215,7 @@ var programa = (amb) => Effect_exports.gen(function* () {
   if (amb.evento === "workflow_dispatch") {
     const onPrBranch = !amb.statusFromApp && amb.runRef === `refs/heads/${pr.head.ref}`;
     if (amb.prSha === void 0 && amb.sha !== pr.head.sha && !onPrBranch) {
-      const motivo = `O disparo n\xE3o trouxe o input sha, e o commit do run (${amb.sha}) n\xE3o \xE9 o head do PR: dispare com -f sha=${pr.head.sha}.`;
+      const motivo = `O disparo n\xE3o trouxe o input sha, e o commit do run (${amb.sha}) n\xE3o \xE9 o head do PR: dispare com -f sha=${pr.head.sha} (ou, num caller sem o input sha, dispare no branch do PR).`;
       return yield* publicar(amb, falhaSemPr(motivo), void 0, void 0, "");
     }
     if (amb.statusFromApp && amb.runRef !== `refs/heads/${pr.base.ref}`) {
