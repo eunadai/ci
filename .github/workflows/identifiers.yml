@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       ci-ref:
-        description: Ref do nadairafael/ci de onde vem o dist/identifiers.mjs
+        description: Ref do eunadai/ci de onde vem o dist/identifiers.mjs
         type: string
         default: v1
       timeout:
@@ -49,7 +49,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: nadairafael/ci
+          repository: eunadai/ci
           ref: ${{ inputs.ci-ref }}
           path: .identifiers-ci
           sparse-checkout: dist
