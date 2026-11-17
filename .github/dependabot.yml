@@ -13,7 +13,7 @@ updates:
     cooldown:
       default-days: 7
     ignore:
-      # The types follow the Node runtime (.node-version, esbuild target node22): a new major comes
+      # The types follow the Node runtime (.node-version, esbuild target node26): a new major comes
       # with a runtime bump, by hand.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
