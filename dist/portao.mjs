@@ -27073,7 +27073,7 @@ var PrDaApi = Schema_exports.Struct({
   labels: Schema_exports.Array(Schema_exports.Struct({ name: Schema_exports.String })),
   user: Schema_exports.Struct({ login: Schema_exports.String }),
   head: Schema_exports.Struct({ ref: Schema_exports.String, sha: Schema_exports.String }),
-  base: Schema_exports.Struct({ sha: Schema_exports.String }),
+  base: Schema_exports.Struct({ ref: Schema_exports.String, sha: Schema_exports.String }),
   changed_files: Schema_exports.Number
 });
 var ArquivoDaApi = Schema_exports.Struct({
@@ -27305,6 +27305,18 @@ var programa = (amb) => Effect_exports.gen(function* () {
     return yield* publicar(amb, r, void 0, void 0, amb.evento === "workflow_dispatch" ? shaDoRun(amb) : amb.sha);
   }
   const pr = lido.success;
+  if (amb.evento === "workflow_dispatch") {
+    const onPrBranch = !amb.statusFromApp && amb.runRef === `refs/heads/${pr.head.ref}`;
+    if (amb.prSha === void 0 && amb.sha !== pr.head.sha && !onPrBranch) {
+      const motivo = `O disparo n\xE3o trouxe o input sha, e o commit do run (${amb.sha}) n\xE3o \xE9 o head do PR: dispare com -f sha=${pr.head.sha}.`;
+      return yield* publicar(amb, falhaSemPr(motivo), void 0, void 0, "");
+    }
+    if (amb.statusFromApp && amb.runRef !== `refs/heads/${pr.base.ref}`) {
+      const branch = amb.runRef.replace(/^refs\/heads\//, "");
+      const motivo = `O disparo rodou em \xAB${branch}\xBB, mas a base do PR \xE9 \xAB${pr.base.ref}\xBB: com o App, dispare no branch base do PR.`;
+      return yield* publicar(amb, falhaSemPr(motivo), void 0, void 0, "");
+    }
+  }
   const obsoleto = amb.evento === "workflow_dispatch" && pr.head.sha !== shaDoRun(amb);
   const numero = obsoleto ? void 0 : pr.number;
   const alvo = obsoleto ? shaDoRun(amb) : pr.head.sha;
@@ -27384,6 +27396,8 @@ var { ok } = await Effect_exports.runPromise(
     runUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY ?? ""}/actions/runs/${env.GITHUB_RUN_ID ?? ""}`,
     prNumero: env.PR_NUMERO || void 0,
     prSha: env.PR_SHA || void 0,
+    runRef: env.GITHUB_REF ?? "",
+    statusFromApp: Boolean(env.STATUS_TOKEN),
     appSemToken: env.APP_PEDIDO === "true" && !env.STATUS_TOKEN ? `O caller pediu o App do port\xE3o (app-client-id), mas o token dele n\xE3o saiu: confira se o secret PORTAO_APP_KEY est\xE1 no environment \xAB${env.AMBIENTE ?? ""}\xBB e se o App est\xE1 instalado neste repo.` : void 0,
     log: (linha) => console.log(linha),
     anexarSummary: (texto) => {

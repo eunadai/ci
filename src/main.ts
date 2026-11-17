@@ -30,6 +30,8 @@ const { ok } = await Effect.runPromise(
     runUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY ?? ""}/actions/runs/${env.GITHUB_RUN_ID ?? ""}`,
     prNumero: env.PR_NUMERO || undefined,
     prSha: env.PR_SHA || undefined,
+    runRef: env.GITHUB_REF ?? "",
+    statusFromApp: Boolean(env.STATUS_TOKEN),
     appSemToken: env.APP_PEDIDO === "true" && !env.STATUS_TOKEN
       ? `O caller pediu o App do portão (app-client-id), mas o token dele não saiu: confira se o secret PORTAO_APP_KEY está no environment «${env.AMBIENTE ?? ""}» e se o App está instalado neste repo.`
       : undefined,

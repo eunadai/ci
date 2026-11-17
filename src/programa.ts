@@ -17,6 +17,10 @@ export interface Ambiente {
   // workflow_dispatch only: the PR head the dispatch is for. Lets a caller dispatch on its default
   // branch (where the App's environment lives) and still never pass a head that moved.
   readonly prSha: string | undefined
+  // GITHUB_REF: the ref the run is on (refs/heads/<branch> on workflow_dispatch).
+  readonly runRef: string
+  // The run holds the App's token, so its `portao` status is the one a ruleset trusts.
+  readonly statusFromApp: boolean
   // The caller asked for the App (app-client-id) and no App token came out: the gate fails and says why.
   readonly appSemToken?: string | undefined
   readonly log: (linha: string) => void
@@ -57,6 +61,22 @@ export const programa = (amb: Ambiente): Effect.Effect<{ readonly ok: boolean },
       return yield* publicar(amb, r, undefined, undefined, amb.evento === "workflow_dispatch" ? shaDoRun(amb) : amb.sha)
     }
     const pr = lido.success
+    // Two dispatches the gate refuses without touching the PR (no comment, no status). Without the
+    // `sha` input, a run off the PR's branch would judge a commit that is not the head (with the App,
+    // the run's commit must be the head itself: a fork's branch can share the base's name); with the
+    // App, a run off the PR's base would write a trusted status from a config the base never had.
+    if (amb.evento === "workflow_dispatch") {
+      const onPrBranch = !amb.statusFromApp && amb.runRef === `refs/heads/${pr.head.ref}`
+      if (amb.prSha === undefined && amb.sha !== pr.head.sha && !onPrBranch) {
+        const motivo = `O disparo não trouxe o input sha, e o commit do run (${amb.sha}) não é o head do PR: dispare com -f sha=${pr.head.sha}.`
+        return yield* publicar(amb, falhaSemPr(motivo), undefined, undefined, "")
+      }
+      if (amb.statusFromApp && amb.runRef !== `refs/heads/${pr.base.ref}`) {
+        const branch = amb.runRef.replace(/^refs\/heads\//, "")
+        const motivo = `O disparo rodou em «${branch}», mas a base do PR é «${pr.base.ref}»: com o App, dispare no branch base do PR.`
+        return yield* publicar(amb, falhaSemPr(motivo), undefined, undefined, "")
+      }
+    }
     // A dispatched run for a head that has since moved judges an old commit: its failure goes on that
     // commit, and it leaves the comment alone, so it never overwrites the verdict on the new head.
     const obsoleto = amb.evento === "workflow_dispatch" && pr.head.sha !== shaDoRun(amb)

@@ -15,7 +15,7 @@ export const PrDaApi = Schema.Struct({
   labels: Schema.Array(Schema.Struct({ name: Schema.String })),
   user: Schema.Struct({ login: Schema.String }),
   head: Schema.Struct({ ref: Schema.String, sha: Schema.String }),
-  base: Schema.Struct({ sha: Schema.String }),
+  base: Schema.Struct({ ref: Schema.String, sha: Schema.String }),
   changed_files: Schema.Number,
 })
 export type PrDaApi = typeof PrDaApi.Type
