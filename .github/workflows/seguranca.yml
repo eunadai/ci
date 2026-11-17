@@ -3,6 +3,8 @@
 # introduced, writes the commit status «seguranca» on the PR head and, by default, only warns:
 # `bloquear: true` makes a new finding fail. Semgrep, the slow step, does not run on draft PRs.
 # Suppression files are read from the base branch, so a PR cannot silence its own findings.
+# OSV scans lockfiles even when .gitignore covers them (--no-ignore); in diff mode the base's
+# .gitleaksignore replaces the PR's.
 # The caller grants: contents read, statuses write (and pull-requests write with `bloquear: true`).
 #
 # Tools are pinned by exact version: the binaries by the SHA-256 written below, Semgrep and its

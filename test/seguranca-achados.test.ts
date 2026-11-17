@@ -155,6 +155,7 @@ describe("situacaoGitleaks", () => {
 })
 
 describe("sensiveis", () => {
+  // Pure rule.
   it("qualquer workflow é sensível, não só o seguranca.yml", () => {
     expect(sensiveis(["src/a.ts", ".github/workflows/ci.yml", "pkg/.semgrepignore"]))
       .toEqual([".github/workflows/ci.yml", "pkg/.semgrepignore"])

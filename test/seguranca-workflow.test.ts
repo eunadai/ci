@@ -31,6 +31,7 @@ describe("seguranca.yml", () => {
     expect(req).toMatch(/^semgrep==\d+\.\d+\.\d+ \\$/m)
   })
 
+  // Contract: the flag the workflow promises callers.
   it("os dois scans do OSV leem lockfile mesmo coberto pelo .gitignore", () => {
     const run = stepScript("seguranca.yml", "OSV-Scanner")
     expect(run.match(/scan source -r --no-ignore /g)?.length).toBe(2)
@@ -52,6 +53,7 @@ describe("seguranca.yml, passo Preparar o diff", () => {
       GIT_COMMITTER_NAME: "test",
       GIT_COMMITTER_EMAIL: "test@example.com",
     }
+    for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"]) delete env[name]
     const repo = join(root, "repo")
     mkdirSync(repo)
     const git = (...args: string[]) =>
