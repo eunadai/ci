@@ -3,6 +3,8 @@
 # introduced, writes the commit status «seguranca» on the PR head and, by default, only warns:
 # `bloquear: true` makes a new finding fail. Semgrep, the slow step, does not run on draft PRs.
 # Suppression files are read from the base branch, so a PR cannot silence its own findings.
+# OSV scans lockfiles even when .gitignore covers them (--no-ignore); in diff mode the base's
+# .gitleaksignore replaces the PR's.
 # The caller grants: contents read, statuses write (and pull-requests write with `bloquear: true`).
 #
 # Tools are pinned by exact version: the binaries by the SHA-256 written below, Semgrep and its
@@ -150,9 +152,11 @@ jobs:
           done
           [ -f "$sup/.gitleaksignore" ] || : > "$sup/.gitleaksignore"
           [ -f "$sup/.gitleaks.toml" ] || printf '[extend]\nuseDefault = true\n' > "$sup/.gitleaks.toml"
-          # .semgrepignore and osv-scanner.toml, in any folder, as they are on the base. OSV reads each
-          # osv-scanner.toml next to its lockfile, and the OSV step does the same on the merge-base tree.
-          mapfile -t ignores < <({ git ls-files; git ls-tree -r --name-only "$BASE"; } | grep -E '(^|/)(\.semgrepignore|osv-scanner\.toml)$' | sort -u || true)
+          # .semgrepignore, .gitleaksignore and osv-scanner.toml, in any folder, as they are on the base.
+          # gitleaks also reads .gitleaksignore from the scanned tree, besides --gitleaks-ignore-path.
+          # OSV reads each osv-scanner.toml next to its lockfile, and the OSV step does the same on the
+          # merge-base tree.
+          mapfile -t ignores < <({ git ls-files; git ls-tree -r --name-only "$BASE"; } | grep -E '(^|/)(\.semgrepignore|\.gitleaksignore|osv-scanner\.toml)$' | sort -u || true)
           for f in "${ignores[@]}"; do
             if git cat-file -e "$BASE:$f" 2>/dev/null; then git checkout -q "$BASE" -- "$f"; else git rm -q -- "$f"; fi
           done
@@ -213,7 +217,7 @@ jobs:
         run: |
           set +e -uo pipefail
           out="$RUNNER_TEMP/seguranca"
-          "$RUNNER_TEMP/osv-scanner" scan source -r --allow-no-lockfiles --format json \
+          "$RUNNER_TEMP/osv-scanner" scan source -r --no-ignore --allow-no-lockfiles --format json \
             --output-file "$out/osv-head.json" .
           echo $? > "$out/osv-head.exit"
           if [ "$ESCOPO" = diff ]; then
@@ -223,7 +227,7 @@ jobs:
             git ls-tree -r --name-only "$BASE" | grep -E '(^|/)osv-scanner\.toml$' | while read -r f; do
               mkdir -p "$(dirname "$RUNNER_TEMP/base/$f")" && git show "$BASE:$f" > "$RUNNER_TEMP/base/$f"
             done
-            (cd "$RUNNER_TEMP/base" && "$RUNNER_TEMP/osv-scanner" scan source -r --allow-no-lockfiles --format json \
+            (cd "$RUNNER_TEMP/base" && "$RUNNER_TEMP/osv-scanner" scan source -r --no-ignore --allow-no-lockfiles --format json \
               --output-file "$out/osv-base.json" .)
             echo $? > "$out/osv-base.exit"
           fi

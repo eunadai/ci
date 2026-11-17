@@ -112,7 +112,7 @@ describe("summary", () => {
       "|---|---|---|---|---|",
       "| `src/b.js` | 2 | [js.eval-detected](https://sg.run/7ope) | WARNING | Detected the use of eval(). |",
       "",
-      "⚠️ Este PR mexe na supressão de achados (.semgrepignore): precisa de olho humano. Supressões novas só valem depois do merge.",
+      "⚠️ Este PR mexe na supressão de achados ou em workflows (.semgrepignore): precisa de olho humano. Supressões novas só valem depois do merge; uma mudança no caller já vale neste PR.",
     ].join("\n"))
   })
 

@@ -27263,7 +27263,7 @@ var situacaoGitleaks = (saida2) => {
   };
 };
 var SUPRESSAO = /* @__PURE__ */ new Set(["osv-scanner.toml", ".semgrepignore", ".gitleaksignore", ".gitleaks.toml"]);
-var sensiveis = (alterados) => alterados.filter((a) => SUPRESSAO.has(a.split("/").at(-1) ?? "") || a === ".github/workflows/seguranca.yml");
+var sensiveis = (alterados) => alterados.filter((a) => SUPRESSAO.has(a.split("/").at(-1) ?? "") || a.startsWith(".github/workflows/"));
 var supressoesNaLinha = (texto) => texto.split("\n").flatMap((l) => {
   const [arquivo, linha, marcador] = l.split("	");
   return arquivo && marcador && /^[1-9]\d*$/.test(linha ?? "") ? [{ arquivo, linha: Number(linha), marcador }] : [];
@@ -27315,7 +27315,7 @@ var situacaoTexto = (s) => {
       return `n\xE3o rodou: ${s.motivo}`;
   }
 };
-var AVISO_SENSIVEIS = (arquivos) => `\u26A0\uFE0F Este PR mexe na supress\xE3o de achados (${arquivos.join(", ")}): precisa de olho humano. Supress\xF5es novas s\xF3 valem depois do merge.`;
+var AVISO_SENSIVEIS = (arquivos) => `\u26A0\uFE0F Este PR mexe na supress\xE3o de achados ou em workflows (${arquivos.join(", ")}): precisa de olho humano. Supress\xF5es novas s\xF3 valem depois do merge; uma mudan\xE7a no caller j\xE1 vale neste PR.`;
 var MAX_NA_LINHA = 10;
 var AVISO_NA_LINHA = (marcas) => {
   const lista = marcas.slice(0, MAX_NA_LINHA).map((m) => `\`${m.arquivo}:${m.linha}\` ${m.marcador}`).join(", ");
