@@ -3,7 +3,8 @@ name: CI Python
 # Runs a Python repo's checks in one job: one install, then each command as its own group. The install follows
 # what the repo has: `uv.lock` → `uv sync`, else `pyproject.toml` → `pip install -e .` (plus the `dev` extra
 # when the project declares one), else `requirements.txt` → `pip install -r`. A failing command fails the job,
-# and every command still runs, so one run shows every red.
+# and every command still runs, so one run shows every red. With `lfs: true` the Git LFS files come too, kept in
+# the Actions cache between runs, so only the objects that changed are downloaded.
 on:
   workflow_call:
     inputs:
@@ -19,6 +20,10 @@ on:
         description: JSON com os comandos a rodar, na ordem
         type: string
         default: '["python -m pytest"]'
+      lfs:
+        description: Baixa os arquivos do Git LFS (guardados no cache do Actions entre os runs)
+        type: boolean
+        default: false
       timeout:
         type: number
         default: 20
@@ -37,7 +42,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
+          # The LFS pull below needs the job's token; nothing in this job pushes.
+          persist-credentials: ${{ inputs.lfs }}
+      - name: Lista do LFS
+        id: lfs
+        if: inputs.lfs
+        run: git lfs ls-files --long | sha256sum | cut -c1-16 | sed 's/^/chave=/' >> "$GITHUB_OUTPUT"
+      - name: Cache do LFS
+        if: inputs.lfs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ steps.lfs.outputs.chave }}
+          restore-keys: lfs-
+      - name: Arquivos do LFS
+        if: inputs.lfs
+        run: git lfs pull
       - name: Versão do Python
         id: versao
         env:

@@ -123,7 +123,7 @@ jobs:
       env: '{"CI":"true"}'
 ```
 
-Todos os comandos rodam, mesmo depois de um falhar, para que um run mostre todos os vermelhos; o job falha se algum falhou, e o resumo diz qual. Sem `comandos`, roda `python -m pytest`. O padrão do `runner` já é uma máquina do GitHub (`["ubuntu-latest"]`).
+Todos os comandos rodam, mesmo depois de um falhar, para que um run mostre todos os vermelhos; o job falha se algum falhou, e o resumo diz qual. Sem `comandos`, roda `python -m pytest`. O padrão do `runner` já é uma máquina do GitHub (`["ubuntu-latest"]`). Num repo com Git LFS, passe `lfs: true`: os arquivos vêm junto e ficam no cache do Actions entre os runs, e só o que mudou é baixado de novo.
 
 ## Segurança (`seguranca.yml`)
 
