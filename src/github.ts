@@ -93,7 +93,7 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
         const falhou = (detalhe: string, status?: number) =>
           new ErroApi({ mensagem: `${metodo} ${caminho} ${detalhe}`, ...(status === undefined ? {} : { status }) })
         // Only transient failures leave this effect: a network error or a 429/5xx answer.
-        const tentativa = http.execute(request).pipe(
+        const attempt = http.execute(request).pipe(
           Effect.mapError((e) => falhou(`falhou: ${e.message}`)),
           Effect.flatMap((resposta) =>
             resposta.status === 429 || resposta.status >= 500
@@ -102,8 +102,8 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
           ),
         )
         const comRetry = metodo === "GET"
-          ? tentativa.pipe(Effect.retry({ schedule: Schedule.exponential("1 second"), times: MAX_ATTEMPTS - 1 }))
-          : tentativa
+          ? attempt.pipe(Effect.retry({ schedule: Schedule.exponential("1 second"), times: MAX_ATTEMPTS - 1 }))
+          : attempt
         return comRetry.pipe(
           Effect.flatMap((resposta) =>
             resposta.status === 404
@@ -178,21 +178,21 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
 
         lerConfig: (baseSha) => {
           const caminho = `/repos/${acesso.repo}/contents/.github/portao.json?ref=${baseSha}`
-          const semLeitura = new ErroApi({
+          const noReadAccess = new ErroApi({
             mensagem: `o token não lê ${acesso.repo}: dê ao job do caller a permissão contents: read`,
           })
-          const negado = (e: ErroApi) => Effect.fail(e.status === 403 ? semLeitura : e)
+          const onDenied = (e: ErroApi) => Effect.fail(e.status === 403 ? noReadAccess : e)
           return pedir("GET", caminho).pipe(
-            Effect.catchTag("ErroApi", negado),
+            Effect.catchTag("ErroApi", onDenied),
             Effect.flatMap(Option.match({
               // A 404 is "no config" only if the token can read the repo's contents: a token without
               // contents access also gets 404, and must not turn every rule off silently. The probe
               // reads the base commit, which needs contents: read (the repo itself only needs metadata).
               onNone: () =>
                 pedir("GET", `/repos/${acesso.repo}/commits/${baseSha}`).pipe(
-                  Effect.catchTag("ErroApi", negado),
+                  Effect.catchTag("ErroApi", onDenied),
                   Effect.flatMap(Option.match({
-                    onNone: () => Effect.fail(semLeitura),
+                    onNone: () => Effect.fail(noReadAccess),
                     onSome: () => Effect.succeed(Option.none<Config>()),
                   })),
                 ),

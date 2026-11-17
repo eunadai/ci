@@ -160,9 +160,9 @@ const pr = {
 
 // Edge integration: a transient 502 on a GET is retried after a wait, and the second answer is used.
 it.effect("GET com 502 e depois 200 tenta de novo e devolve o resultado", () => {
-  let vezes = 0
+  let calls = 0
   const { layer, chamadas } = comRotas({
-    "GET /repos/o/r/pulls/1": () => (++vezes === 1 ? { status: 502, json: {} } : { status: 200, json: pr }),
+    "GET /repos/o/r/pulls/1": () => (++calls === 1 ? { status: 502, json: {} } : { status: 200, json: pr }),
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub

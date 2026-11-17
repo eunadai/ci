@@ -27933,13 +27933,13 @@ var githubLive = (acesso) => Layer_exports.effect(
       );
       const request3 = corpo === void 0 ? base2 : HttpClientRequest_exports.bodyJsonUnsafe(base2, corpo);
       const falhou = (detalhe, status) => new ErroApi({ mensagem: `${metodo} ${caminho} ${detalhe}`, ...status === void 0 ? {} : { status } });
-      const tentativa = http.execute(request3).pipe(
+      const attempt2 = http.execute(request3).pipe(
         Effect_exports.mapError((e) => falhou(`falhou: ${e.message}`)),
         Effect_exports.flatMap(
           (resposta) => resposta.status === 429 || resposta.status >= 500 ? Effect_exports.fail(falhou(`respondeu ${resposta.status}`, resposta.status)) : Effect_exports.succeed(resposta)
         )
       );
-      const comRetry = metodo === "GET" ? tentativa.pipe(Effect_exports.retry({ schedule: Schedule_exports.exponential("1 second"), times: MAX_ATTEMPTS - 1 })) : tentativa;
+      const comRetry = metodo === "GET" ? attempt2.pipe(Effect_exports.retry({ schedule: Schedule_exports.exponential("1 second"), times: MAX_ATTEMPTS - 1 })) : attempt2;
       return comRetry.pipe(
         Effect_exports.flatMap(
           (resposta) => resposta.status === 404 ? Effect_exports.succeed(Option_exports.none()) : resposta.status < 200 || resposta.status >= 300 ? Effect_exports.fail(falhou(`respondeu ${resposta.status}`, resposta.status)) : resposta.status === 204 ? Effect_exports.succeed(Option_exports.some(null)) : resposta.json.pipe(
@@ -27992,20 +27992,20 @@ var githubLive = (acesso) => Layer_exports.effect(
       ),
       lerConfig: (baseSha) => {
         const caminho = `/repos/${acesso.repo}/contents/.github/portao.json?ref=${baseSha}`;
-        const semLeitura = new ErroApi({
+        const noReadAccess = new ErroApi({
           mensagem: `o token n\xE3o l\xEA ${acesso.repo}: d\xEA ao job do caller a permiss\xE3o contents: read`
         });
-        const negado = (e) => Effect_exports.fail(e.status === 403 ? semLeitura : e);
+        const onDenied = (e) => Effect_exports.fail(e.status === 403 ? noReadAccess : e);
         return pedir("GET", caminho).pipe(
-          Effect_exports.catchTag("ErroApi", negado),
+          Effect_exports.catchTag("ErroApi", onDenied),
           Effect_exports.flatMap(Option_exports.match({
             // A 404 is "no config" only if the token can read the repo's contents: a token without
             // contents access also gets 404, and must not turn every rule off silently. The probe
             // reads the base commit, which needs contents: read (the repo itself only needs metadata).
             onNone: () => pedir("GET", `/repos/${acesso.repo}/commits/${baseSha}`).pipe(
-              Effect_exports.catchTag("ErroApi", negado),
+              Effect_exports.catchTag("ErroApi", onDenied),
               Effect_exports.flatMap(Option_exports.match({
-                onNone: () => Effect_exports.fail(semLeitura),
+                onNone: () => Effect_exports.fail(noReadAccess),
                 onSome: () => Effect_exports.succeed(Option_exports.none())
               }))
             ),
