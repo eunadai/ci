@@ -1,7 +1,7 @@
 import { expect, it } from "@effect/vitest"
 import { Effect, Fiber, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
-import { COMMENT_AUTHOR, GitHub, githubLive, MARCADOR, MAX_ATTEMPTS } from "../src/github.js"
+import { GitHub, githubLive, MARCADOR } from "../src/github.js"
 import { httpFalso } from "./fake-http.js"
 
 const API = "https://api.github.test"
@@ -134,17 +134,22 @@ it.effect("gravarStatus usa o contexto portao", () => {
   }).pipe(Effect.provide(layer))
 })
 
-// Edge integration: a GET that answers 5xx every time is tried MAX_ATTEMPTS times, and the error is the last one.
+// Edge integration: a GET that answers 5xx every time is tried 3 times, 1 s and then 2 s apart, and the error is the last one.
 it.effect("GET com 500 em toda tentativa falha com a mensagem de sempre", () => {
   const { layer, chamadas } = comRotas({ "GET /repos/o/r/pulls/1": { status: 500, json: {} } })
   return Effect.gen(function* () {
     const gh = yield* GitHub
     const fiber = yield* Effect.forkChild(Effect.flip(gh.lerPr(1)))
-    yield* TestClock.adjust("10 seconds")
+    yield* TestClock.adjust("1 second")
+    expect(chamadas.length).toBe(2)
+    yield* TestClock.adjust("1900 millis")
+    expect(chamadas.length).toBe(2)
+    yield* TestClock.adjust("100 millis")
+    expect(chamadas.length).toBe(3)
     const erro = yield* Fiber.join(fiber)
     expect(erro._tag).toBe("ErroApi")
     expect(erro.mensagem).toBe("GET /repos/o/r/pulls/1 respondeu 500")
-    expect(chamadas.length).toBe(MAX_ATTEMPTS)
+    expect(chamadas.length).toBe(3)
   }).pipe(Effect.provide(layer))
 })
 
@@ -307,6 +312,5 @@ it.effect("gravarComentario ignora o marcador num comentário de outro autor", (
       "GET /repos/o/r/issues/1/comments?per_page=100&page=1",
       "POST /repos/o/r/issues/1/comments",
     ])
-    expect(COMMENT_AUTHOR).toBe("github-actions[bot]")
   }).pipe(Effect.provide(layer))
 })
