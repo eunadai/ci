@@ -6,7 +6,7 @@ O portão roda nas máquinas do GitHub, responde em segundos e escreve o motivo 
 
 ## Adotar num repo
 
-1. **Settings → Actions → General:** permitir actions e workflows reutilizáveis de outros repositórios ("Allow all actions and reusable workflows", ou incluir `nadairafael/ci` na lista).
+1. **Settings → Actions → General:** permitir actions e workflows reutilizáveis de outros repositórios ("Allow all actions and reusable workflows", ou incluir `eunadai/ci` na lista).
 2. **Criar `.github/workflows/portao.yml`:**
 
    ```yaml
@@ -34,7 +34,7 @@ O portão roda nas máquinas do GitHub, responde em segundos e escreve o motivo 
          pull-requests: write
          issues: write
          statuses: write
-       uses: nadairafael/ci/.github/workflows/portao.yml@v1
+       uses: eunadai/ci/.github/workflows/portao.yml@v1
        with:
          pr: ${{ format('{0}', inputs.pr) }}
          sha: ${{ inputs.sha }}
@@ -56,7 +56,7 @@ Sem isto, qualquer workflow com `statuses: write` consegue gravar um status `por
 3. No caller acima, passar o App e o environment:
 
    ```yaml
-       uses: nadairafael/ci/.github/workflows/portao.yml@v1
+       uses: eunadai/ci/.github/workflows/portao.yml@v1
        with:
          pr: ${{ format('{0}', inputs.pr) }}
          sha: ${{ inputs.sha }}
@@ -99,7 +99,7 @@ Roda o CI de um repo Node **num job só**: uma vaga na fila e uma instalação p
 ```yaml
 jobs:
   ci:
-    uses: nadairafael/ci/.github/workflows/ci-node.yml@v1
+    uses: eunadai/ci/.github/workflows/ci-node.yml@v1
     with:
       runner: '["ubuntu-latest"]'
       scripts: '["typecheck","lint","test"]'
@@ -144,7 +144,7 @@ jobs:
       contents: read
       statuses: write
       # pull-requests: write   # só com bloquear: true, para o comentário
-    uses: nadairafael/ci/.github/workflows/seguranca.yml@v1
+    uses: eunadai/ci/.github/workflows/seguranca.yml@v1
     # with:
     #   bloquear: true
     #   ferramentas: '["semgrep","gitleaks"]'
@@ -211,7 +211,7 @@ jobs:
     permissions:
       contents: read
       statuses: write
-    uses: nadairafael/ci/.github/workflows/identifiers.yml@v1
+    uses: eunadai/ci/.github/workflows/identifiers.yml@v1
     # with:
     #   block: true
 ```
