@@ -27306,7 +27306,8 @@ var programa = (amb) => Effect_exports.gen(function* () {
   }
   const pr = lido.success;
   if (amb.evento === "workflow_dispatch") {
-    if (amb.prSha === void 0 && amb.sha !== pr.head.sha && amb.runRef !== `refs/heads/${pr.head.ref}`) {
+    const noBranchDoPr = !amb.statusFromApp && amb.runRef === `refs/heads/${pr.head.ref}`;
+    if (amb.prSha === void 0 && amb.sha !== pr.head.sha && !noBranchDoPr) {
       const motivo = `O disparo n\xE3o trouxe o input sha, e o commit do run (${amb.sha}) n\xE3o \xE9 o head do PR: dispare com -f sha=${pr.head.sha}.`;
       return yield* publicar(amb, falhaSemPr(motivo), void 0, void 0, "");
     }

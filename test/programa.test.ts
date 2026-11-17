@@ -177,6 +177,7 @@ it.effect("App sem token num disparo de head antigo: falha no sha pedido e não 
   }).pipe(Effect.provide(m.layer))
 })
 
+// Contract: with the App, a dispatch off the PR's base writes no status and no comment, with this copy.
 it.effect("dispatch com o App fora do branch base do PR: reprova sem gravar status nem comentário", () => {
   const m = montar({ pr: { ...PR, base: { ref: "frouxa", sha: "basesha" } } })
   return Effect.gen(function* () {
@@ -193,6 +194,7 @@ it.effect("dispatch com o App fora do branch base do PR: reprova sem gravar stat
   }).pipe(Effect.provide(m.layer))
 })
 
+// Contract: a dispatch without `sha` off the PR's branch writes no status and no comment, with this copy.
 it.effect("dispatch sem sha fora do branch do PR: pede o sha e não grava nada", () => {
   const m = montar()
   return Effect.gen(function* () {
@@ -208,13 +210,20 @@ it.effect("dispatch sem sha fora do branch do PR: pede o sha e não grava nada",
   }).pipe(Effect.provide(m.layer))
 })
 
-it.effect("dispatch sem sha, PR de fork cujo branch se chama main: nunca aprova", () => {
+// Contract: with the App, a dispatch without `sha` needs the run's commit to be the head, even when a
+// fork's branch shares the base's name; it writes no status (never on top of main) and asks for the sha.
+it.effect("dispatch com o App sem sha, PR de fork cujo branch se chama main: pede o sha e não grava nada", () => {
   const m = montar({ pr: { ...PR, head: { ref: "main", sha: "headsha" } } })
   return Effect.gen(function* () {
     const r = yield* programa(m.amb({
       evento: "workflow_dispatch", prNumero: "7", prSha: undefined, sha: "mainsha", runRef: "refs/heads/main",
+      statusFromApp: true,
     }))
     expect(r.ok).toBe(false)
-    expect(m.status.every((s) => s.estado === "failure")).toBe(true)
+    expect(m.status).toEqual([])
+    expect(m.comentarios).toEqual([])
+    expect(m.log).toContain(
+      "::error title=Portão::O disparo não trouxe o input sha, e o commit do run (mainsha) não é o head do PR: dispare com -f sha=headsha.",
+    )
   }).pipe(Effect.provide(m.layer))
 })

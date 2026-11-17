@@ -62,10 +62,12 @@ export const programa = (amb: Ambiente): Effect.Effect<{ readonly ok: boolean },
     }
     const pr = lido.success
     // Two dispatches the gate refuses without touching the PR (no comment, no status). Without the
-    // `sha` input, a run off the PR's branch would judge a commit that is not the head; with the App,
-    // a run off the PR's base would write a trusted status from a config the base never had.
+    // `sha` input, a run off the PR's branch would judge a commit that is not the head (with the App,
+    // the run's commit must be the head itself: a fork's branch can share the base's name); with the
+    // App, a run off the PR's base would write a trusted status from a config the base never had.
     if (amb.evento === "workflow_dispatch") {
-      if (amb.prSha === undefined && amb.sha !== pr.head.sha && amb.runRef !== `refs/heads/${pr.head.ref}`) {
+      const noBranchDoPr = !amb.statusFromApp && amb.runRef === `refs/heads/${pr.head.ref}`
+      if (amb.prSha === undefined && amb.sha !== pr.head.sha && !noBranchDoPr) {
         const motivo = `O disparo não trouxe o input sha, e o commit do run (${amb.sha}) não é o head do PR: dispare com -f sha=${pr.head.sha}.`
         return yield* publicar(amb, falhaSemPr(motivo), undefined, undefined, "")
       }
