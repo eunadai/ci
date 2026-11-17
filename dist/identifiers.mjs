@@ -28001,8 +28001,8 @@ var githubLive = (acesso) => Layer_exports.effect(
           Effect_exports.flatMap(Option_exports.match({
             // A 404 is "no config" only if the token can read the repo's contents: a token without
             // contents access also gets 404, and must not turn every rule off silently. The probe
-            // reads the base commit, which needs contents: read (the repo itself only needs metadata).
-            onNone: () => pedir("GET", `/repos/${acesso.repo}/commits/${baseSha}`).pipe(
+            // reads the base commit object (no diff), which needs contents: read (the repo itself only needs metadata).
+            onNone: () => pedir("GET", `/repos/${acesso.repo}/git/commits/${baseSha}`).pipe(
               Effect_exports.catchTag("ErroApi", onDenied),
               Effect_exports.flatMap(Option_exports.match({
                 onNone: () => Effect_exports.fail(noReadAccess),
@@ -28325,10 +28325,10 @@ var { ok } = await Effect_exports.runPromise(
     ),
     inBase: (identifiers) => Effect_exports.try({
       try: () => {
-        const r = run3("git", ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"]);
+        const r = run3("git", ["-c", "core.quotePath=false", "grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"]);
         if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr.trim());
         const hits = [...parseGrep(r.stdout, mergeBase)];
-        for (const path of git("ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
+        for (const path of git("-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
           for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path });
         }
         const wanted = new Set(identifiers);

@@ -187,9 +187,9 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
             Effect.flatMap(Option.match({
               // A 404 is "no config" only if the token can read the repo's contents: a token without
               // contents access also gets 404, and must not turn every rule off silently. The probe
-              // reads the base commit, which needs contents: read (the repo itself only needs metadata).
+              // reads the base commit object (no diff), which needs contents: read (the repo itself only needs metadata).
               onNone: () =>
-                pedir("GET", `/repos/${acesso.repo}/commits/${baseSha}`).pipe(
+                pedir("GET", `/repos/${acesso.repo}/git/commits/${baseSha}`).pipe(
                   Effect.catchTag("ErroApi", onDenied),
                   Effect.flatMap(Option.match({
                     onNone: () => Effect.fail(noReadAccess),

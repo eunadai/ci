@@ -15,7 +15,7 @@ const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64")
 it.effect("lerConfig com 404 é none quando o repo é legível", () => {
   const { layer } = comRotas({
     "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 404, json: {} },
-    "GET /repos/o/r/commits/base1": { status: 200, json: { sha: "base1" } },
+    "GET /repos/o/r/git/commits/base1": { status: 200, json: { sha: "base1" } },
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub
@@ -200,7 +200,7 @@ it.effect("GET com 404 não tenta de novo", () => {
 it.effect("lerConfig com 404 e repo ilegível falha em vez de passar sem regras", () => {
   const { layer } = comRotas({
     "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 404, json: {} },
-    "GET /repos/o/r/commits/base1": { status: 404, json: {} },
+    "GET /repos/o/r/git/commits/base1": { status: 404, json: {} },
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub
@@ -287,7 +287,7 @@ it.effect("lerConfig com 403 no conteúdo diz qual permissão falta", () => {
 it.effect("lerConfig com 404 e sonda 403 diz qual permissão falta", () => {
   const { layer } = comRotas({
     "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 404, json: {} },
-    "GET /repos/o/r/commits/base1": { status: 403, json: {} },
+    "GET /repos/o/r/git/commits/base1": { status: 403, json: {} },
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub
