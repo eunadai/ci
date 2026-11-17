@@ -110,6 +110,21 @@ Sem `runner`, o job roda em `["self-hosted","macOS"]` (o padrão do input). Em r
 
 Só `typecheck`, `lint` e `test` viram passo, nessa ordem. Outro nome em `scripts` gera um aviso e não roda: use um job próprio.
 
+## CI Python (`ci-python.yml`)
+
+Roda o CI de um repo Python **num job só**: uma instalação por run, e depois cada comando como um grupo próprio. A instalação segue o que o repo tem: `uv.lock` → `uv sync --frozen`; senão `pyproject.toml` → `pip install -e .` (com o extra `dev`, se o projeto declarar um); senão `requirements.txt` → `pip install -r`. O Python vem do `.python-version` do repo, ou do input `python-version` (padrão `3.12`).
+
+```yaml
+jobs:
+  ci:
+    uses: eunadai/ci/.github/workflows/ci-python.yml@v1
+    with:
+      comandos: '["python -B -m unittest discover -s tests -t .", "python -m meu_pacote verify"]'
+      env: '{"CI":"true"}'
+```
+
+Todos os comandos rodam, mesmo depois de um falhar, para que um run mostre todos os vermelhos; o job falha se algum falhou, e o resumo diz qual. Sem `comandos`, roda `python -m pytest`. O padrão do `runner` já é uma máquina do GitHub (`["ubuntu-latest"]`). Num repo com Git LFS, passe `lfs: true`: os arquivos vêm junto e ficam no cache do Actions entre os runs, e só o que mudou é baixado de novo.
+
 ## Segurança (`seguranca.yml`)
 
 Roda três ferramentas de código aberto nas máquinas do GitHub (`ubuntu-latest`), sem code scanning:
