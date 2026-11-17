@@ -161,7 +161,7 @@ Para exigir a segurança num ruleset, use `bloquear: true` e exija o contexto **
 
 ### Falsos positivos
 
-Cada ferramenta usa o próprio mecanismo, no repo do projeto. Num PR, esses arquivos valem **a partir do branch base**: um PR não consegue silenciar os próprios achados, e um PR que mexe neles recebe um aviso de "olho humano" no summary.
+Cada ferramenta usa o próprio mecanismo, no repo do projeto. Num PR, esses arquivos valem **a partir do branch base**: um PR não consegue silenciar os próprios achados, e um PR que mexe neles, ou em qualquer workflow, recebe um aviso de "olho humano" no summary.
 
 | Ferramenta | Como suprimir |
 |---|---|
@@ -170,6 +170,8 @@ Cada ferramenta usa o próprio mecanismo, no repo do projeto. Num PR, esses arqu
 | gitleaks | `.gitleaksignore` com o fingerprint do achado (está no summary), ou `gitleaks:allow` na linha; regras próprias em `.gitleaks.toml`. |
 
 Os comentários na linha (`nosemgrep`, `gitleaks:allow`) fazem parte do diff e ficam à vista na revisão.
+
+O caller é a exceção: ele roda a partir do PR, então com `bloquear: true` um PR que edita o workflow caller desliga o check nesse PR. Por isso qualquer mudança em workflow recebe o aviso.
 
 ### Custo em minutos
 

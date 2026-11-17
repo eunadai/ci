@@ -103,7 +103,7 @@ it.effect("arquivos de supressão alterados no PR entram no summary", () => {
   const m = montar({ ...LIMPO, "alterados.txt": "src/a.ts\n.gitleaksignore\n" })
   return Effect.gen(function* () {
     yield* programa(m.amb())
-    expect(m.summaries[0]).toContain("⚠️ Este PR mexe na supressão de achados (.gitleaksignore)")
+    expect(m.summaries[0]).toContain("⚠️ Este PR mexe na supressão de achados ou em workflows (.gitleaksignore)")
   }).pipe(Effect.provide(m.layer))
 })
 

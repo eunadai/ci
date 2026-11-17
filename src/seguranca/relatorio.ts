@@ -73,7 +73,7 @@ const situacaoTexto = (s: Situacao): string => {
 }
 
 const AVISO_SENSIVEIS = (arquivos: ReadonlyArray<string>) =>
-  `⚠️ Este PR mexe na supressão de achados (${arquivos.join(", ")}): precisa de olho humano. Supressões novas só valem depois do merge.`
+  `⚠️ Este PR mexe na supressão de achados ou em workflows (${arquivos.join(", ")}): precisa de olho humano. Supressões novas só valem depois do merge; uma mudança no caller já vale neste PR.`
 
 const MAX_NA_LINHA = 10
 

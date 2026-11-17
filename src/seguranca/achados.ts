@@ -225,12 +225,12 @@ export const situacaoGitleaks = (saida: Saida): Situacao => {
 
 // ---------- Suppression files ----------
 
-// The files through which a project silences a finding, plus the caller. A PR that touches any of
+// The files through which a project silences a finding, plus any workflow (the caller). A PR that touches any of
 // them gets the human-eye warning; they only take effect from the base branch.
 const SUPRESSAO = new Set(["osv-scanner.toml", ".semgrepignore", ".gitleaksignore", ".gitleaks.toml"])
 
 export const sensiveis = (alterados: ReadonlyArray<string>): ReadonlyArray<string> =>
-  alterados.filter((a) => SUPRESSAO.has(a.split("/").at(-1) ?? "") || a === ".github/workflows/seguranca.yml")
+  alterados.filter((a) => SUPRESSAO.has(a.split("/").at(-1) ?? "") || a.startsWith(".github/workflows/"))
 
 // ---------- Inline suppressions added by the PR ----------
 
