@@ -43,7 +43,7 @@ describe("seguranca.yml", () => {
 describe("seguranca.yml, passo Preparar o diff", () => {
   const prepare = (base: Record<string, string>, pr: Record<string, string>) => {
     const root = mkdtempSync(join(tmpdir(), "seguranca-diff-"))
-    const env = {
+    const env: NodeJS.ProcessEnv = {
       ...process.env,
       HOME: root,
       GIT_CONFIG_GLOBAL: join(root, "gitconfig"),
