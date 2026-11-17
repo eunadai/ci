@@ -7,6 +7,7 @@ import { appendFileSync } from "node:fs"
 import { join } from "node:path"
 import { githubLive } from "../github.js"
 import { CONFIG_PATH } from "./report.js"
+import { parseGrep } from "./extract.js"
 import { CheckError, program } from "./program.js"
 
 const env = process.env
@@ -68,13 +69,14 @@ const { ok } = await Effect.runPromise(
     inBase: (identifiers) =>
       Effect.try({
         try: () => {
-          const r = run("git", ["grep", "-I", "-h", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"])
+          const r = run("git", ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"])
           if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr.trim())
-          const found = new Set(r.stdout.split("\n").map((l) => l.slice(l.lastIndexOf(":") + 1)))
+          const hits = [...parseGrep(r.stdout, mergeBase)]
           for (const path of git("ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
-            for (const segment of path.split("/")) found.add(segment.replace(/\..*$/, ""))
+            for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path })
           }
-          return new Set(identifiers.filter((i) => found.has(i)))
+          const wanted = new Set(identifiers)
+          return hits.filter((h) => wanted.has(h.identifier))
         },
         catch: (e) => new CheckError({ message: `não consegui ler a base: ${e instanceof Error ? e.message : String(e)}` }),
       }),

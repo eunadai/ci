@@ -189,7 +189,7 @@ O que nunca entra:
 
 - **comentários e strings com espaço** (texto, mensagem de log): o idioma deles é regra de cada projeto. Uma string sem espaço (chave, rota, nome de evento) é conferida;
 - **arquivos de i18n, docs, markdown, lockfiles, gerados** (`locales/`, `i18n/`, `*.po`, `dist/`, `*.lock` e afins);
-- **código legado**: um identificador que já existe na base (no código ou no nome de um arquivo) não conta, então chamar `calcularTotal()` de uma linha nova não é achado, mas criar `calcularFrete()` é;
+- **código legado**: um identificador que já existe na base, num arquivo que o check confere (código ou nome de arquivo; docs, markdown e i18n não valem), não conta, então chamar `calcularTotal()` de uma linha nova não é achado, mas criar `calcularFrete()` é;
 - **palavra que o cspell não conhece em nenhum dos dois** (sigla, jargão, nome de marca): ela não é tratada como português.
 
 Termos do domínio sem tradução já passam: `cpf`, `cnpj`, `cep`, `pix`, `boleto`, `nfe`, `nfse`. O resultado vai para o summary, para anotações nas linhas e para o commit status **`identifiers`** no head do PR. Por padrão, **só avisa**; com `block: true`, um identificador novo em português dá `failure`.

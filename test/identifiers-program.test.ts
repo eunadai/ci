@@ -32,7 +32,7 @@ const setup = (f: { statusHttp?: number } = {}) => {
     diff: diff(["const total = calcularFrete(pedido)", "const shipping = computeShipping(order)"]),
     config: undefined,
     portuguese: (words) => Effect.succeed(new Set(words.filter((w) => PT.has(w)))),
-    inBase: () => Effect.succeed(new Set()),
+    inBase: () => Effect.succeed([]),
     log: (s) => void log.push(s),
     appendSummary: () => {},
     ...over,
@@ -57,9 +57,29 @@ describe("identifiers", () => {
     expect(t.status).toEqual([{ state: "failure", description: "2 identificadores novos em português" }])
   })
 
+  // Pure rule: legacy counts only in files the check itself would inspect.
+  it("uma palavra que na base só aparece em docs não é legado", async () => {
+    const t = setup()
+    await t.run(t.env({
+      diff: diff(["const pedido = 1"]),
+      inBase: () => Effect.succeed([{ identifier: "pedido", file: "docs/guia.md" }]),
+    }))
+    expect(t.status).toEqual([{ state: "success", description: "1 identificador novo em português (só aviso)" }])
+  })
+
+  // Pure rule: a hit in code the check inspects is legacy.
+  it("um identificador que a base já tem no código é legado", async () => {
+    const t = setup()
+    await t.run(t.env({
+      diff: diff(["const pedido = 1"]),
+      inBase: () => Effect.succeed([{ identifier: "pedido", file: "src/a.ts" }]),
+    }))
+    expect(t.status).toEqual([{ state: "success", description: "nenhum identificador novo em português" }])
+  })
+
   it("o que já existe na base é legado e não conta", async () => {
     const t = setup()
-    expect(await t.run(t.env({ block: true, inBase: (i) => Effect.succeed(new Set(i)) }))).toEqual({ ok: true })
+    expect(await t.run(t.env({ block: true, inBase: (i) => Effect.succeed(i.map((identifier) => ({ identifier, file: "src/a.ts" }))) }))).toEqual({ ok: true })
     expect(t.status).toEqual([{ state: "success", description: "nenhum identificador novo em português" }])
     expect(t.log.join("\n")).toContain("2 identificadores em português que já existem na base não contam (código legado).")
   })
