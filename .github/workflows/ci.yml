@@ -30,6 +30,13 @@ jobs:
       - name: dist/ em dia com src/
         run: npm run check:dist
 
+  # End-to-end test of ci-python.yml from the commit under test: this repo has no Python project, so the install
+  # says so and only the commands run (the version check proves the Python the workflow set up).
+  ci-python:
+    uses: ./.github/workflows/ci-python.yml
+    with:
+      comandos: '["python --version", "python -c \"import sys; assert sys.version_info[:2] == (3, 12), sys.version\""]'
+
   # Static analysis of this repo's workflows. Plain output and annotations, no SARIF upload, so it
   # needs no code scanning; any finding fails the job.
   zizmor:
