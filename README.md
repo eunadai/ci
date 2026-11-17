@@ -68,7 +68,7 @@ Sem isto, qualquer workflow com `statuses: write` consegue gravar um status `por
 
 4. No ruleset, na checagem `portao`, trocar a origem de "any source" para o App.
 
-Um disparo manual precisa rodar no branch padrão, onde o environment deixa: `gh workflow run portao.yml --ref main -f pr=<n> -f sha=<head do PR>`. O `sha` garante que um disparo para um head que já mudou nunca aprova o head novo. Se o caller pede o App e o token não sai (chave errada, App fora do repo), o portão reprova dizendo o que conferir.
+Um disparo manual precisa rodar no branch padrão, onde o environment deixa: `gh workflow run portao.yml --ref main -f pr=<n> -f sha=<head do PR>`. O `sha` garante que um disparo para um head que já mudou nunca aprova o head novo. Com o App, o disparo roda no branch base do PR e o `sha` é obrigatório na prática: um disparo em outro branch, ou sem `sha` fora do branch do PR, reprova sem tocar no PR (nem comentário, nem status). Se o caller pede o App e o token não sai (chave errada, App fora do repo), o portão reprova dizendo o que conferir.
 
 ## Regras (`.github/portao.json`)
 

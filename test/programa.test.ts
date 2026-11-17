@@ -7,7 +7,7 @@ import { type Ambiente, programa } from "../src/programa.js"
 
 const PR: PrDaApi = {
   number: 7, body: "", labels: [], user: { login: "nadairafael" },
-  head: { ref: "feat/x", sha: "headsha" }, base: { sha: "basesha" }, changed_files: 1,
+  head: { ref: "feat/x", sha: "headsha" }, base: { ref: "main", sha: "basesha" }, changed_files: 1,
 }
 
 interface Falso {
@@ -45,6 +45,8 @@ const montar = (f: Falso = {}) => {
     runUrl: "https://run",
     prNumero: undefined,
     prSha: undefined,
+    runRef: "refs/pull/7/merge",
+    statusFromApp: false,
     log: (s) => void log.push(s),
     anexarSummary: () => {},
     ...over,
@@ -86,7 +88,7 @@ it.effect("dispatch com PR_NUMERO inválido falha com o motivo exato", () => {
 it.effect("dispatch compara o head com o commit do run", () => {
   const m = montar()
   return Effect.gen(function* () {
-    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "outro" }))
+    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "outro", runRef: "refs/heads/feat/x" }))
     expect(r.ok).toBe(false)
     expect(m.log.join("\n")).toContain("O PR mudou depois do disparo")
     // The failure goes on the commit the run was for, and the comment of the new head is left alone.
@@ -117,7 +119,7 @@ it.effect("config inválida no base reprova com a mensagem da config", () => {
 it.effect("dispatch no head atual grava no head e comenta", () => {
   const m = montar()
   return Effect.gen(function* () {
-    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "headsha" }))
+    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "headsha", runRef: "refs/heads/feat/x" }))
     expect(r.ok).toBe(true)
     expect(m.status.map((s) => s.sha)).toEqual(["headsha"])
     expect(m.comentarios.length).toBe(1)
@@ -138,7 +140,7 @@ it.effect("um motivo com várias linhas sai numa anotação só, com as quebras 
 it.effect("dispatch no branch padrão com o sha do head: avalia o head e grava nele", () => {
   const m = montar()
   return Effect.gen(function* () {
-    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "mainsha", prSha: "headsha" }))
+    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "mainsha", prSha: "headsha", runRef: "refs/heads/main", statusFromApp: true }))
     expect(r.ok).toBe(true)
     expect(m.status.map((s) => [s.sha, s.estado])).toEqual([["headsha", "success"]])
     expect(m.comentarios.length).toBe(1)
@@ -148,7 +150,7 @@ it.effect("dispatch no branch padrão com o sha do head: avalia o head e grava n
 it.effect("dispatch com o sha de um head antigo: falha no sha pedido, nunca no commit do branch padrão", () => {
   const m = montar()
   return Effect.gen(function* () {
-    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "mainsha", prSha: "velho" }))
+    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", sha: "mainsha", prSha: "velho", runRef: "refs/heads/main", statusFromApp: true }))
     expect(r.ok).toBe(false)
     expect(m.status.map((s) => [s.sha, s.estado])).toEqual([["velho", "failure"]])
     expect(m.comentarios).toEqual([])
@@ -168,9 +170,51 @@ it.effect("App pedido sem token: reprova no head dizendo o que conferir", () => 
 it.effect("App sem token num disparo de head antigo: falha no sha pedido e não comenta", () => {
   const m = montar()
   return Effect.gen(function* () {
-    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", prSha: "velho", appSemToken: "sem token" }))
+    const r = yield* programa(m.amb({ evento: "workflow_dispatch", payload: {}, prNumero: "7", prSha: "velho", runRef: "refs/heads/main", appSemToken: "sem token" }))
     expect(r.ok).toBe(false)
     expect(m.status.map((s) => [s.sha, s.estado])).toEqual([["velho", "failure"]])
     expect(m.comentarios).toEqual([])
+  }).pipe(Effect.provide(m.layer))
+})
+
+it.effect("dispatch com o App fora do branch base do PR: reprova sem gravar status nem comentário", () => {
+  const m = montar({ pr: { ...PR, base: { ref: "frouxa", sha: "basesha" } } })
+  return Effect.gen(function* () {
+    const r = yield* programa(m.amb({
+      evento: "workflow_dispatch", prNumero: "7", prSha: "headsha", sha: "mainsha",
+      runRef: "refs/heads/main", statusFromApp: true,
+    }))
+    expect(r.ok).toBe(false)
+    expect(m.status).toEqual([])
+    expect(m.comentarios).toEqual([])
+    expect(m.log).toContain(
+      "::error title=Portão::O disparo rodou em «main», mas a base do PR é «frouxa»: com o App, dispare no branch base do PR.",
+    )
+  }).pipe(Effect.provide(m.layer))
+})
+
+it.effect("dispatch sem sha fora do branch do PR: pede o sha e não grava nada", () => {
+  const m = montar()
+  return Effect.gen(function* () {
+    const r = yield* programa(m.amb({
+      evento: "workflow_dispatch", prNumero: "7", prSha: undefined, sha: "mainsha", runRef: "refs/heads/main",
+    }))
+    expect(r.ok).toBe(false)
+    expect(m.status).toEqual([])
+    expect(m.comentarios).toEqual([])
+    expect(m.log).toContain(
+      "::error title=Portão::O disparo não trouxe o input sha, e o commit do run (mainsha) não é o head do PR: dispare com -f sha=headsha.",
+    )
+  }).pipe(Effect.provide(m.layer))
+})
+
+it.effect("dispatch sem sha, PR de fork cujo branch se chama main: nunca aprova", () => {
+  const m = montar({ pr: { ...PR, head: { ref: "main", sha: "headsha" } } })
+  return Effect.gen(function* () {
+    const r = yield* programa(m.amb({
+      evento: "workflow_dispatch", prNumero: "7", prSha: undefined, sha: "mainsha", runRef: "refs/heads/main",
+    }))
+    expect(r.ok).toBe(false)
+    expect(m.status.every((s) => s.estado === "failure")).toBe(true)
   }).pipe(Effect.provide(m.layer))
 })

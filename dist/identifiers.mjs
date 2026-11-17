@@ -27002,7 +27002,7 @@ var PrDaApi = Schema_exports.Struct({
   labels: Schema_exports.Array(Schema_exports.Struct({ name: Schema_exports.String })),
   user: Schema_exports.Struct({ login: Schema_exports.String }),
   head: Schema_exports.Struct({ ref: Schema_exports.String, sha: Schema_exports.String }),
-  base: Schema_exports.Struct({ sha: Schema_exports.String }),
+  base: Schema_exports.Struct({ ref: Schema_exports.String, sha: Schema_exports.String }),
   changed_files: Schema_exports.Number
 });
 var ArquivoDaApi = Schema_exports.Struct({
