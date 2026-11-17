@@ -106,7 +106,9 @@ jobs:
       env: '{"CI":"true"}'
 ```
 
-Sem `runner`, o job roda em `["self-hosted","macOS"]` (o padrão do input).
+Sem `runner`, o job roda em `["self-hosted","macOS"]` (o padrão do input). Em repo público, passe `runner` com uma máquina do GitHub: o padrão `self-hosted` rodaria código de PR de fork na máquina do runner.
+
+Só `typecheck`, `lint` e `test` viram passo, nessa ordem. Outro nome em `scripts` gera um aviso e não roda: use um job próprio.
 
 ## Segurança (`seguranca.yml`)
 
