@@ -13,7 +13,7 @@ for (const [entrada, saida] of entradas) {
     entryPoints: [entrada],
     bundle: true,
     platform: "node",
-    target: "node22",
+    target: "node26",
     format: "esm",
     outfile: saida,
     legalComments: "none",
