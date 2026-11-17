@@ -1,6 +1,7 @@
 import { expect, it } from "@effect/vitest"
-import { Effect, Layer, Option } from "effect"
-import { GitHub, githubLive, MARCADOR } from "../src/github.js"
+import { Effect, Fiber, Layer, Option } from "effect"
+import { TestClock } from "effect/testing"
+import { COMMENT_AUTHOR, GitHub, githubLive, MARCADOR, MAX_ATTEMPTS } from "../src/github.js"
 import { httpFalso } from "./fake-http.js"
 
 const API = "https://api.github.test"
@@ -14,7 +15,7 @@ const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64")
 it.effect("lerConfig com 404 é none quando o repo é legível", () => {
   const { layer } = comRotas({
     "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 404, json: {} },
-    "GET /repos/o/r": { status: 200, json: { full_name: "o/r" } },
+    "GET /repos/o/r/commits/base1": { status: 200, json: { sha: "base1" } },
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub
@@ -67,7 +68,7 @@ it.effect("labelAplicadaPor pega o último labeled", () => {
 it.effect("gravarComentario edita quando o marcador existe", () => {
   const { layer, chamadas } = comRotas({
     "GET /repos/o/r/issues/1/comments?per_page=100&page=1": {
-      status: 200, json: [{ id: 7, body: "oi" }, { id: 9, body: `${MARCADOR}\nantigo` }],
+      status: 200, json: [{ id: 7, body: "oi", user: { login: "github-actions[bot]" } }, { id: 9, body: `${MARCADOR}\nantigo`, user: { login: "github-actions[bot]" } }],
     },
     "PATCH /repos/o/r/issues/comments/9": { status: 200, json: {} },
   })
@@ -81,7 +82,7 @@ it.effect("gravarComentario edita quando o marcador existe", () => {
 
 it.effect("gravarComentario cria quando não existe", () => {
   const { layer, chamadas } = comRotas({
-    "GET /repos/o/r/issues/1/comments?per_page=100&page=1": { status: 200, json: [{ id: 7, body: "oi" }] },
+    "GET /repos/o/r/issues/1/comments?per_page=100&page=1": { status: 200, json: [{ id: 7, body: "oi", user: { login: "github-actions[bot]" } }] },
     "POST /repos/o/r/issues/1/comments": { status: 201, json: {} },
   })
   return Effect.gen(function* () {
@@ -133,20 +134,68 @@ it.effect("gravarStatus usa o contexto portao", () => {
   }).pipe(Effect.provide(layer))
 })
 
-it.effect("resposta 500 vira ErroApi com a mensagem exata", () => {
-  const { layer } = comRotas({ "GET /repos/o/r/pulls/1": { status: 500, json: {} } })
+// Edge integration: a GET that answers 5xx every time is tried MAX_ATTEMPTS times, and the error is the last one.
+it.effect("GET com 500 em toda tentativa falha com a mensagem de sempre", () => {
+  const { layer, chamadas } = comRotas({ "GET /repos/o/r/pulls/1": { status: 500, json: {} } })
   return Effect.gen(function* () {
     const gh = yield* GitHub
-    const erro = yield* Effect.flip(gh.lerPr(1))
+    const fiber = yield* Effect.forkChild(Effect.flip(gh.lerPr(1)))
+    yield* TestClock.adjust("10 seconds")
+    const erro = yield* Fiber.join(fiber)
     expect(erro._tag).toBe("ErroApi")
     expect(erro.mensagem).toBe("GET /repos/o/r/pulls/1 respondeu 500")
+    expect(chamadas.length).toBe(MAX_ATTEMPTS)
+  }).pipe(Effect.provide(layer))
+})
+
+const pr = {
+  number: 1, body: null, labels: [], user: { login: "a" },
+  head: { ref: "h", sha: "s1" }, base: { ref: "main", sha: "base1" }, changed_files: 1,
+}
+
+// Edge integration: a transient 502 on a GET is retried after a wait, and the second answer is used.
+it.effect("GET com 502 e depois 200 tenta de novo e devolve o resultado", () => {
+  let vezes = 0
+  const { layer, chamadas } = comRotas({
+    "GET /repos/o/r/pulls/1": () => (++vezes === 1 ? { status: 502, json: {} } : { status: 200, json: pr }),
+  })
+  return Effect.gen(function* () {
+    const gh = yield* GitHub
+    const fiber = yield* Effect.forkChild(gh.lerPr(1))
+    yield* TestClock.adjust("1 second")
+    expect((yield* Fiber.join(fiber)).number).toBe(1)
+    expect(chamadas.length).toBe(2)
+  }).pipe(Effect.provide(layer))
+})
+
+// Edge integration: a write is never retried, so a 502 on a POST is not sent twice.
+it.effect("POST com 502 não tenta de novo", () => {
+  const { layer, chamadas } = comRotas({ "POST /repos/o/r/statuses/abc": { status: 502, json: {} } })
+  return Effect.gen(function* () {
+    const gh = yield* GitHub
+    const fiber = yield* Effect.forkChild(Effect.flip(gh.gravarStatus("abc", "success", "ok", "https://run")))
+    yield* TestClock.adjust("10 seconds")
+    expect((yield* Fiber.join(fiber)).mensagem).toBe("POST /repos/o/r/statuses/abc respondeu 502")
+    expect(chamadas.length).toBe(1)
+  }).pipe(Effect.provide(layer))
+})
+
+// Edge integration: a 404 is an answer, not a transient failure.
+it.effect("GET com 404 não tenta de novo", () => {
+  const { layer, chamadas } = comRotas({ "GET /repos/o/r/pulls/1": { status: 404, json: {} } })
+  return Effect.gen(function* () {
+    const gh = yield* GitHub
+    const fiber = yield* Effect.forkChild(Effect.flip(gh.lerPr(1)))
+    yield* TestClock.adjust("10 seconds")
+    expect((yield* Fiber.join(fiber))._tag).toBe("ErroApi")
+    expect(chamadas.length).toBe(1)
   }).pipe(Effect.provide(layer))
 })
 
 it.effect("lerConfig com 404 e repo ilegível falha em vez de passar sem regras", () => {
   const { layer } = comRotas({
     "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 404, json: {} },
-    "GET /repos/o/r": { status: 404, json: {} },
+    "GET /repos/o/r/commits/base1": { status: 404, json: {} },
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub
@@ -172,7 +221,7 @@ it.effect("contexto e marcador próprios: status «seguranca» e o comentário d
   const fake = httpFalso(API, {
     "POST /repos/o/r/statuses/abc": { status: 201, json: {} },
     "GET /repos/o/r/issues/1/comments?per_page=100&page=1": {
-      status: 200, json: [{ id: 9, body: `${MARCADOR}\nportão` }, { id: 11, body: "<!-- outro -->\nantigo" }],
+      status: 200, json: [{ id: 9, body: `${MARCADOR}\nportão`, user: { login: "github-actions[bot]" } }, { id: 11, body: "<!-- outro -->\nantigo", user: { login: "github-actions[bot]" } }],
     },
     "PATCH /repos/o/r/issues/comments/11": { status: 200, json: {} },
   })
@@ -188,7 +237,7 @@ it.effect("contexto e marcador próprios: status «seguranca» e o comentário d
 
 it.effect("gravarComentario com soEditar não cria quando não existe", () => {
   const { layer, chamadas } = comRotas({
-    "GET /repos/o/r/issues/1/comments?per_page=100&page=1": { status: 200, json: [{ id: 7, body: "oi" }] },
+    "GET /repos/o/r/issues/1/comments?per_page=100&page=1": { status: 200, json: [{ id: 7, body: "oi", user: { login: "github-actions[bot]" } }] },
   })
   return Effect.gen(function* () {
     const gh = yield* GitHub
@@ -213,5 +262,51 @@ it.effect("com tokenStatus, só o status vai com o token do App; o resto, com o 
       ["GET", "/repos/o/r/issues/1/comments", "Bearer t"],
       ["POST", "/repos/o/r/issues/1/comments", "Bearer t"],
     ])
+  }).pipe(Effect.provide(layer))
+})
+
+// Edge integration: a 403 on the config means the token lacks contents: read, and says so.
+it.effect("lerConfig com 403 no conteúdo diz qual permissão falta", () => {
+  const { layer } = comRotas({
+    "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 403, json: {} },
+  })
+  return Effect.gen(function* () {
+    const gh = yield* GitHub
+    const erro = yield* Effect.flip(gh.lerConfig("base1"))
+    expect(erro._tag).toBe("ErroApi")
+    expect(erro.mensagem).toContain("contents: read")
+  }).pipe(Effect.provide(layer))
+})
+
+// Edge integration: the probe needs contents: read too, so a 403 on it is the missing permission.
+it.effect("lerConfig com 404 e sonda 403 diz qual permissão falta", () => {
+  const { layer } = comRotas({
+    "GET /repos/o/r/contents/.github/portao.json?ref=base1": { status: 404, json: {} },
+    "GET /repos/o/r/commits/base1": { status: 403, json: {} },
+  })
+  return Effect.gen(function* () {
+    const gh = yield* GitHub
+    const erro = yield* Effect.flip(gh.lerConfig("base1"))
+    expect(erro._tag).toBe("ErroApi")
+    expect(erro.mensagem).toContain("contents: read")
+  }).pipe(Effect.provide(layer))
+})
+
+// Edge integration: only the bot's own comment is the pinned one; a marker pasted by someone else is ignored.
+it.effect("gravarComentario ignora o marcador num comentário de outro autor", () => {
+  const { layer, chamadas } = comRotas({
+    "GET /repos/o/r/issues/1/comments?per_page=100&page=1": {
+      status: 200, json: [{ id: 9, body: `${MARCADOR}\nfalso`, user: { login: "alguem" } }],
+    },
+    "POST /repos/o/r/issues/1/comments": { status: 201, json: {} },
+  })
+  return Effect.gen(function* () {
+    const gh = yield* GitHub
+    yield* gh.gravarComentario(1, `${MARCADOR}\nnovo`)
+    expect(chamadas.map((c) => `${c.metodo} ${c.url}`)).toEqual([
+      "GET /repos/o/r/issues/1/comments?per_page=100&page=1",
+      "POST /repos/o/r/issues/1/comments",
+    ])
+    expect(COMMENT_AUTHOR).toBe("github-actions[bot]")
   }).pipe(Effect.provide(layer))
 })

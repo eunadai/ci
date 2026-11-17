@@ -1,10 +1,17 @@
-import { Context, Data, Effect, Layer, Option, Schema } from "effect"
+import { Context, Data, Effect, Layer, Option, Schedule, Schema } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/http"
 import { type Arquivo, MAX_ARQUIVOS_API } from "./avaliar.js"
 import { type Config, ConfigInvalida, decodeConfig } from "./config.js"
 
 // Hidden marker that identifies the gate's own comment, so it is edited and never duplicated.
 export const MARCADOR = "<!-- portao:nadairafael/ci -->"
+
+// The pinned comment is written with the caller's job token, so its author is this bot. A comment
+// by anyone else that carries the marker is not the gate's.
+export const COMMENT_AUTHOR = "github-actions[bot]"
+
+// Attempts of a GET that fails by network or answers 429 or 5xx, waiting 1 s and then 2 s between them.
+export const MAX_ATTEMPTS = 3
 
 // `status` is the HTTP status when the API answered with an error.
 export class ErroApi extends Data.TaggedError("ErroApi")<{ readonly mensagem: string; readonly status?: number }> {}
@@ -31,7 +38,11 @@ const Evento = Schema.Struct({
   label: Schema.optionalKey(Schema.Struct({ name: Schema.String })),
   actor: Schema.NullOr(Schema.Struct({ login: Schema.String })),
 })
-const Comentario = Schema.Struct({ id: Schema.Number, body: Schema.NullOr(Schema.String) })
+const Comentario = Schema.Struct({
+  id: Schema.Number,
+  body: Schema.NullOr(Schema.String),
+  user: Schema.NullOr(Schema.Struct({ login: Schema.String })),
+})
 const Conteudo = Schema.Struct({ content: Schema.String })
 
 export interface Acesso {
@@ -68,7 +79,8 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
       const http = yield* HttpClient.HttpClient
       const marcador = acesso.marcador ?? MARCADOR
 
-      // One API call. 404 is returned as None when `aceita404`; any other non-2xx is an ErroApi.
+      // One API call. 404 is returned as None; any other non-2xx is an ErroApi. A GET that fails by
+      // network or answers 429 or 5xx is tried again, up to MAX_ATTEMPTS; a write never is.
       const pedir = (metodo: "GET" | "POST" | "PATCH", caminho: string, corpo?: unknown, token = acesso.token) => {
         const base = HttpClientRequest.make(metodo)(`${acesso.api}${caminho}`).pipe(
           HttpClientRequest.setHeaders({
@@ -80,8 +92,19 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
         const request = corpo === undefined ? base : HttpClientRequest.bodyJsonUnsafe(base, corpo)
         const falhou = (detalhe: string, status?: number) =>
           new ErroApi({ mensagem: `${metodo} ${caminho} ${detalhe}`, ...(status === undefined ? {} : { status }) })
-        return http.execute(request).pipe(
+        // Only transient failures leave this effect: a network error or a 429/5xx answer.
+        const tentativa = http.execute(request).pipe(
           Effect.mapError((e) => falhou(`falhou: ${e.message}`)),
+          Effect.flatMap((resposta) =>
+            resposta.status === 429 || resposta.status >= 500
+              ? Effect.fail(falhou(`respondeu ${resposta.status}`, resposta.status))
+              : Effect.succeed(resposta)
+          ),
+        )
+        const comRetry = metodo === "GET"
+          ? tentativa.pipe(Effect.retry({ schedule: Schedule.exponential("1 second"), times: MAX_ATTEMPTS - 1 }))
+          : tentativa
+        return comRetry.pipe(
           Effect.flatMap((resposta) =>
             resposta.status === 404
               ? Effect.succeed(Option.none<unknown>())
@@ -155,19 +178,21 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
 
         lerConfig: (baseSha) => {
           const caminho = `/repos/${acesso.repo}/contents/.github/portao.json?ref=${baseSha}`
+          const semLeitura = new ErroApi({
+            mensagem: `o token não lê ${acesso.repo}: dê ao job do caller a permissão contents: read`,
+          })
+          const negado = (e: ErroApi) => Effect.fail(e.status === 403 ? semLeitura : e)
           return pedir("GET", caminho).pipe(
+            Effect.catchTag("ErroApi", negado),
             Effect.flatMap(Option.match({
-              // A 404 is "no config" only if the token can read the repo: a token without
-              // contents access also gets 404, and must not turn every rule off silently.
+              // A 404 is "no config" only if the token can read the repo's contents: a token without
+              // contents access also gets 404, and must not turn every rule off silently. The probe
+              // reads the base commit, which needs contents: read (the repo itself only needs metadata).
               onNone: () =>
-                pedir("GET", `/repos/${acesso.repo}`).pipe(
+                pedir("GET", `/repos/${acesso.repo}/commits/${baseSha}`).pipe(
+                  Effect.catchTag("ErroApi", negado),
                   Effect.flatMap(Option.match({
-                    onNone: () =>
-                      Effect.fail(
-                        new ErroApi({
-                          mensagem: `o token não lê ${acesso.repo}: dê ao job do caller a permissão contents: read`,
-                        }),
-                      ),
+                    onNone: () => Effect.fail(semLeitura),
                     onSome: () => Effect.succeed(Option.none<Config>()),
                   })),
                 ),
@@ -198,7 +223,7 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
         gravarComentario: (numero, corpo, soEditar = false) =>
           paginado(Comentario, `/repos/${acesso.repo}/issues/${numero}/comments`).pipe(
             Effect.flatMap((comentarios) => {
-              const meu = comentarios.find((c) => c.body?.includes(marcador))
+              const meu = comentarios.find((c) => c.user?.login === COMMENT_AUTHOR && c.body?.includes(marcador))
               return meu
                 ? escrever("PATCH", `/repos/${acesso.repo}/issues/comments/${meu.id}`, { body: corpo })
                 : soEditar
