@@ -45,6 +45,30 @@ jobs:
           annotations: true
           version: 1.32.0
 
+  # Lints this repo's workflows (and the shell in their `run:` steps, through shellcheck on the runner).
+  # The binary is pinned by the SHA-256 below, bumped by hand: Dependabot does not see versions inside
+  # `run:`. Any finding fails the job.
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$archive"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+      - name: actionlint
+        run: '"$RUNNER_TEMP/actionlint" -color'
+
   # End-to-end test of seguranca.yml on this repo's own PRs and pushes, warn-only. It runs the bundle
   # from the commit under test (ci-ref), not from the v1 tag. `./` and not the self-repository `$/`:
   # actionlint, one of this repo's checks, does not accept `$/` yet.
@@ -64,5 +88,18 @@ jobs:
       contents: read
       statuses: write
     uses: ./.github/workflows/identifiers.yml # zizmor: ignore[self-repository]
+    with:
+      ci-ref: ${{ github.event.pull_request.head.sha }}
+
+  # End-to-end test of portao.yml on this repo's own PRs, with the bundle from the commit under test.
+  # This repo has no .github/portao.json, so the verdict is "nenhuma regra ligada".
+  portao:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      statuses: write
+    uses: ./.github/workflows/portao.yml # zizmor: ignore[self-repository]
     with:
       ci-ref: ${{ github.event.pull_request.head.sha }}

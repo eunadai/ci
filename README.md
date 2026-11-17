@@ -282,8 +282,8 @@ git tag v1.x.y origin/main
 git push origin v1.x.y
 ```
 
-O `release.yml` faz o resto: confere que o commit está no `main`, roda o typecheck, os testes e o `check:dist`, cria a release com as notas geradas e move a `v1` para o mesmo commit. Se uma conferência falha, nada é criado nem movido: corrija, apague a tag (`git push origin :v1.x.y`) e envie de novo. A `v1` só anda se a tag nova for a maior da major, então um backport nunca a puxa para trás. Rodar de novo uma release que já existe não duplica nada.
+O `release.yml` faz o resto: confere que o commit está no `main`, roda o typecheck, os testes e o `check:dist`, cria a release com as notas geradas e move a `v1` para o mesmo commit. Se uma conferência falha, nada é criado nem movido: corrija e lance a próxima patch: as tags `v*` não podem ser apagadas nem movidas à mão. A `v1` só anda se a tag nova for a maior da major, então um backport nunca a puxa para trás. Rodar de novo uma release que já existe não duplica nada.
 
-O `GITHUB_TOKEN` não consegue apontar uma ref para um commit que muda `.github/workflows/`. Para a `v1` andar nesses casos, crie um GitHub App com **Contents** e **Workflows: Read and write**, instale no repo, guarde o *Client ID* na variável `RELEASE_APP_CLIENT_ID` do repo e a chave no secret `RELEASE_APP_KEY` do environment `release` (com **Deployment branches and tags** limitado às tags `v*`). Sem o App, o run tenta com o `GITHUB_TOKEN` e, se falhar, mostra o comando para mover à mão (`git tag -f v1 v1.x.y && git push -f origin v1`).
+O `GITHUB_TOKEN` não consegue apontar uma ref para um commit que muda `.github/workflows/`. Para a `v1` andar nesses casos, crie um GitHub App com **Contents** e **Workflows: Read and write**, instale no repo, guarde o *Client ID* na variável `RELEASE_APP_CLIENT_ID` do repo e a chave no secret `RELEASE_APP_KEY` do environment `release` (com **Deployment branches and tags** limitado às tags `v*`). Sem o App, o run tenta com o `GITHUB_TOKEN` e, se falhar, avisa que a `v1` não andou: com o ruleset das tags, só o App move a `v1`.
 
 Uma versão que quebra quem chama é `v2.0.0`, nunca uma `v1` movida.
