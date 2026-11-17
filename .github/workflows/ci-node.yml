@@ -1,6 +1,7 @@
 # Reusable CI for a Node repository in ONE job: one queue slot and one install per run, then each
 # script as its own step so the PR shows which one failed. A script missing from package.json is
-# skipped with a warning in the summary, never silently.
+# skipped with a warning in the summary, never silently. A name in `scripts` that is not one of the
+# fixed steps (typecheck, lint, test) gets a warning too: it does not run here.
 name: CI Node
 
 on:
@@ -14,7 +15,7 @@ on:
         type: string
         default: .node-version
       scripts:
-        description: JSON com os scripts do package.json, na ordem
+        description: JSON com os scripts a rodar, entre typecheck, lint e test (a ordem é fixa)
         type: string
         default: '["typecheck","lint","test"]'
       timeout:
@@ -38,6 +39,18 @@ jobs:
           node-version-file: ${{ inputs.node-version-file }}
           # setup-node >= v5 caches on its own when package.json names npm in packageManager; keep v4's no-cache behaviour.
           package-manager-cache: false
+      - name: Scripts
+        env:
+          SCRIPTS: ${{ inputs.scripts }}
+        run: |
+          node -e '
+            const known = ["typecheck", "lint", "test"]
+            for (const name of JSON.parse(process.env.SCRIPTS)) {
+              if (known.includes(name)) continue
+              console.log("::warning title=CI Node::script «" + name + "» não é um passo deste workflow (" + known.join(", ") + ") e não roda aqui: use um job próprio")
+              require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "⚠️ script «" + name + "» não é um passo deste workflow (" + known.join(", ") + "), não roda aqui\n")
+            }
+          '
       - name: Variáveis
         env:
           VARS: ${{ inputs.env }}
