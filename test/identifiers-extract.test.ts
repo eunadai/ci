@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { code, occurrences, parseDiff, splitWords, yamlCode } from "../src/identifiers/extract.js"
+import { code, occurrences, parseGrep, parseDiff, splitWords, yamlCode } from "../src/identifiers/extract.js"
 
 const diff = (file: string, added: ReadonlyArray<string>, opts: { created?: boolean; start?: number } = {}) =>
   [
@@ -80,5 +80,15 @@ describe("occurrences", () => {
     expect(ids(diff("src/locales/pt-BR.json", [`"salvar": "Salvar"`]))).toEqual([])
     expect(ids(diff("README.md", ["pagamento"]))).toEqual([])
     expect(ids(diff("legado/x.ts", ["pagamento"]), ["legado/**"])).toEqual([])
+  })
+})
+
+describe("parseGrep", () => {
+  // Pure rule: the path may hold colons; the identifier is what follows the last one.
+  it("lê caminho e identificador, mesmo com dois-pontos no caminho", () => {
+    expect(parseGrep("abc:src/a.ts:pedido\nabc:src/x:y.ts:frete\n", "abc")).toEqual([
+      { identifier: "pedido", file: "src/a.ts" },
+      { identifier: "frete", file: "src/x:y.ts" },
+    ])
   })
 })

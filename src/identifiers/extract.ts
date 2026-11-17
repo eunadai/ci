@@ -32,6 +32,25 @@ export const DEFAULT_WORDS: ReadonlyArray<string> = ["cpf", "cnpj", "cep", "pix"
 // cspell's own minimum: shorter words are never reported.
 export const MIN_WORD_LENGTH = 4
 
+// Where the base already has an identifier: the file that holds it.
+export interface BaseHit {
+  readonly identifier: string
+  readonly file: string
+}
+
+// The files the check skips: the defaults plus the project's globs.
+export const ignored = (ignore: ReadonlyArray<string>): ((path: string) => boolean) =>
+  casaAlgum([...DEFAULT_IGNORE, ...ignore])
+
+// The hits of `git grep -o` run on `rev` without -h: lines of `<rev>:<path>:<identifier>`. The
+// identifier never holds a colon, so the last one splits it from a path that may hold some.
+export const parseGrep = (output: string, rev: string): ReadonlyArray<BaseHit> =>
+  output.split("\n").filter((l) => l.startsWith(`${rev}:`)).map((l) => {
+    const rest = l.slice(rev.length + 1)
+    const i = rest.lastIndexOf(":")
+    return { identifier: rest.slice(i + 1), file: rest.slice(0, i) }
+  }).filter((h) => h.identifier !== "" && h.file !== "")
+
 export interface AddedLine {
   readonly file: string
   readonly line: number
@@ -142,7 +161,7 @@ const IDENTIFIER = /[\p{L}_$][\p{L}\p{N}_$]*(?:-[\p{L}\p{N}_$]+)*/gu
 // The first occurrence of each identifier the PR adds, in its lines and in the names of the files it
 // creates. Files matching `ignore` (the defaults plus the project's) are skipped.
 export const occurrences = (diff: string, ignore: ReadonlyArray<string>): ReadonlyArray<Occurrence> => {
-  const skip = casaAlgum([...DEFAULT_IGNORE, ...ignore])
+  const skip = ignored(ignore)
   const { lines, newFiles } = parseDiff(diff)
   const seen = new Map<string, Occurrence>()
   const add = (identifier: string, file: string, line: number) => {

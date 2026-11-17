@@ -1,7 +1,7 @@
 import { Data, Effect, Schema } from "effect"
 import { escaparDado } from "../comando.js"
 import { GitHub } from "../github.js"
-import { DEFAULT_WORDS, normalize, occurrences } from "./extract.js"
+import { type BaseHit, DEFAULT_WORDS, ignored, normalize, occurrences } from "./extract.js"
 import { CONFIG_PATH, type Finding, passed, type Result, statusDescription, summary, annotations } from "./report.js"
 
 // The shape of .github/identifiers.json, read from the PR's base branch.
@@ -35,8 +35,8 @@ export interface Environment {
   readonly config: string | undefined
   // Of the given words, the ones that are Portuguese: unknown in English, known in pt-BR.
   readonly portuguese: (words: ReadonlyArray<string>) => Effect.Effect<ReadonlySet<string>, CheckError>
-  // Of the given identifiers, the ones the base already has, in its code or its file names.
-  readonly inBase: (identifiers: ReadonlyArray<string>) => Effect.Effect<ReadonlySet<string>, CheckError>
+  // Where the base has the given identifiers: in file contents and in path segments, with the file.
+  readonly inBase: (identifiers: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<BaseHit>, CheckError>
   readonly log: (line: string) => void
   readonly appendSummary: (text: string) => void
 }
@@ -52,7 +52,10 @@ export const result = (env: Environment): Effect.Effect<Result> =>
     const candidates: ReadonlyArray<Finding> = found
       .map((o) => ({ identifier: o.identifier, words: o.words.filter((w) => pt.has(w)), file: o.file, line: o.line }))
       .filter((f) => f.words.length > 0)
-    const legacy = candidates.length === 0 ? new Set<string>() : yield* env.inBase(candidates.map((f) => f.identifier))
+    // Legacy only where the check itself looks: a hit in docs, markdown or i18n does not count.
+    const skip = ignored(config.ignore ?? [])
+    const hits = candidates.length === 0 ? [] : yield* env.inBase(candidates.map((f) => f.identifier))
+    const legacy = new Set(hits.filter((h) => !skip(h.file)).map((h) => h.identifier))
     return {
       block: env.block,
       findings: candidates.filter((f) => !legacy.has(f.identifier)),

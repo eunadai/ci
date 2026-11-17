@@ -28111,6 +28111,12 @@ var DEFAULT_IGNORE = [
 ];
 var DEFAULT_WORDS = ["cpf", "cnpj", "cep", "pix", "boleto", "nfe", "nfse"];
 var MIN_WORD_LENGTH = 4;
+var ignored = (ignore4) => casaAlgum([...DEFAULT_IGNORE, ...ignore4]);
+var parseGrep = (output, rev) => output.split("\n").filter((l) => l.startsWith(`${rev}:`)).map((l) => {
+  const rest = l.slice(rev.length + 1);
+  const i = rest.lastIndexOf(":");
+  return { identifier: rest.slice(i + 1), file: rest.slice(0, i) };
+}).filter((h) => h.identifier !== "" && h.file !== "");
 var parseDiff = (diff) => {
   const lines = [];
   const newFiles = [];
@@ -28186,7 +28192,7 @@ var YAML_LABEL = /^(\s*(?:-\s+)?(?:name|title|description|summary):\s+)(?![|>]).
 var yamlCode = (text2) => text2.replace(YAML_LABEL, "$1").replace(YAML_PROSE, (_, key5, value3) => value3.includes("${{") ? `${key5}${value3}` : key5);
 var IDENTIFIER = /[\p{L}_$][\p{L}\p{N}_$]*(?:-[\p{L}\p{N}_$]+)*/gu;
 var occurrences = (diff, ignore4) => {
-  const skip = casaAlgum([...DEFAULT_IGNORE, ...ignore4]);
+  const skip = ignored(ignore4);
   const { lines, newFiles } = parseDiff(diff);
   const seen = /* @__PURE__ */ new Map();
   const add4 = (identifier2, file3, line) => {
@@ -28234,7 +28240,9 @@ var result3 = (env2) => Effect_exports.gen(function* () {
   const found = occurrences(env2.diff, config.ignore ?? []).map((o) => ({ ...o, words: o.words.filter((w) => !allowed.has(normalize3(w))) })).filter((o) => o.words.length > 0);
   const pt = yield* env2.portuguese([...new Set(found.flatMap((o) => o.words))]);
   const candidates = found.map((o) => ({ identifier: o.identifier, words: o.words.filter((w) => pt.has(w)), file: o.file, line: o.line })).filter((f) => f.words.length > 0);
-  const legacy = candidates.length === 0 ? /* @__PURE__ */ new Set() : yield* env2.inBase(candidates.map((f) => f.identifier));
+  const skip = ignored(config.ignore ?? []);
+  const hits = candidates.length === 0 ? [] : yield* env2.inBase(candidates.map((f) => f.identifier));
+  const legacy = new Set(hits.filter((h) => !skip(h.file)).map((h) => h.identifier));
   return {
     block: env2.block,
     findings: candidates.filter((f) => !legacy.has(f.identifier)),
@@ -28317,13 +28325,14 @@ var { ok } = await Effect_exports.runPromise(
     ),
     inBase: (identifiers) => Effect_exports.try({
       try: () => {
-        const r = run3("git", ["grep", "-I", "-h", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"]);
+        const r = run3("git", ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"]);
         if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr.trim());
-        const found = new Set(r.stdout.split("\n").map((l) => l.slice(l.lastIndexOf(":") + 1)));
+        const hits = [...parseGrep(r.stdout, mergeBase)];
         for (const path of git("ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
-          for (const segment of path.split("/")) found.add(segment.replace(/\..*$/, ""));
+          for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path });
         }
-        return new Set(identifiers.filter((i) => found.has(i)));
+        const wanted = new Set(identifiers);
+        return hits.filter((h) => wanted.has(h.identifier));
       },
       catch: (e) => new CheckError({ message: `n\xE3o consegui ler a base: ${e instanceof Error ? e.message : String(e)}` })
     }),
