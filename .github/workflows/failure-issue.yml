@@ -1,0 +1,77 @@
+# Reusable notice for a scheduled run: when the run failed it opens one issue (or comments on the one
+# already open for the same workflow) with the run link and the commits since the last green run;
+# when the run passed it closes that issue. The issue is found by a marker with the workflow file
+# name, so each scheduled workflow keeps at most one open issue. Call it after the checked jobs with
+# `if: always()` and pass their result: `success` closes, `failure` opens or comments, anything else
+# (cancelled, skipped) does nothing.
+# The caller grants: contents read, issues write.
+name: Aviso de falha do agendado
+
+on:
+  workflow_call:
+    inputs:
+      result:
+        description: Resultado dos jobs checados (success, failure, cancelled, skipped)
+        type: string
+        required: true
+      base:
+        description: Commit do último run verde (de changes-since-green.yml), para listar o que entrou desde então
+        type: string
+        default: ''
+      title:
+        description: Título da issue
+        type: string
+        default: e2e agendado falhou
+
+permissions:
+  contents: read
+
+jobs:
+  notice:
+    if: inputs.result == 'success' || inputs.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          RESULT: ${{ inputs.result }}
+          BASE: ${{ inputs.base }}
+          TITLE: ${{ inputs.title }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          file=${WORKFLOW_REF%@*}
+          file=${file##*/}
+          marker="<!-- ci:failure-issue:$file -->"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --author 'app/github-actions' --limit 100 \
+            --json number,body --jq "[.[] | select(.body | contains(\"$marker\"))][0].number // \"\"")
+          if [ "$RESULT" = success ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "✅ Voltou a passar: [run]($RUN_URL)."
+              echo "Issue #$number fechada." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2> /dev/null; then
+            commits=$(git log --first-parent --format='- %h %s' "$BASE..HEAD" | head -50)
+            since="Desde o último verde (\`${BASE:0:7}\`) entrou:"
+          else
+            commits=""
+            since="Não há run verde anterior para comparar."
+          fi
+          body=$(printf "%s\n\n❌ [O run](%s) falhou em \`%s\`.\n\n%s\n%s\n" "$marker" "$RUN_URL" "${GITHUB_SHA:0:7}" "$since" "$commits")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+            echo "Comentário na issue #$number." >> "$GITHUB_STEP_SUMMARY"
+          else
+            url=$(gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$body")
+            echo "Issue aberta: $url" >> "$GITHUB_STEP_SUMMARY"
+          fi

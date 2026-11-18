@@ -125,6 +125,44 @@ jobs:
 
 Todos os comandos rodam, mesmo depois de um falhar, para que um run mostre todos os vermelhos; o job falha se algum falhou, e o resumo diz qual. Sem `comandos`, roda `python -m pytest`. O padrão do `runner` já é uma máquina do GitHub (`["ubuntu-latest"]`). Num repo com Git LFS, passe `lfs: true`: os arquivos vêm junto e ficam no cache do Actions entre os runs, e só o que mudou é baixado de novo.
 
+## Suíte agendada só quando há mudança (`changes-since-green.yml` e `failure-issue.yml`)
+
+Para uma suíte lenta (um e2e completo) que roda agendada, e não a cada PR. `changes-since-green.yml` acha o último run verde do próprio workflow na branch padrão e diz se algo mudou desde aquele commit: mudança só em `docs/` ou em `*.md` não conta (input `ignore`, uma lista JSON de regex). Sem run verde anterior, roda. No disparo manual, roda sempre. `failure-issue.yml` abre uma issue quando o run falha, com o link do run e os commits que entraram desde o último verde; se a issue já está aberta, comenta nela; quando volta a passar, fecha.
+
+```yaml
+name: e2e agendado
+on:
+  schedule:
+    - cron: '0 6 * * 1,3,5' # segunda, quarta e sexta, 3h em Brasília
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  changes:
+    permissions:
+      contents: read
+      actions: read
+    uses: eunadai/ci/.github/workflows/changes-since-green.yml@v1
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "a suíte do projeto"
+  notice:
+    needs: [changes, e2e]
+    if: always()
+    permissions:
+      contents: read
+      issues: write
+    uses: eunadai/ci/.github/workflows/failure-issue.yml@v1
+    with:
+      result: ${{ needs.e2e.result }}
+      base: ${{ needs.changes.outputs.base }}
+```
+
+Um run pulado por falta de mudança termina verde, e um run que falhou continua rodando nos dias seguintes até passar, comentando na mesma issue.
+
 ## Segurança (`seguranca.yml`)
 
 Roda três ferramentas de código aberto nas máquinas do GitHub (`ubuntu-latest`), sem code scanning:
