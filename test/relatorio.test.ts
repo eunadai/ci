@@ -35,6 +35,15 @@ describe("comentario", () => {
     expect(comentario(r, CONFIG, RUN)).toContain("- A label «aprovado-nadai» não foi aplicada pelo dono do repo")
   })
 
+  it("com aprovadores, o «Como resolver» manda pedir a um aprovador", () => {
+    const config: Config = { tamanho: { limite: 400, aprovadores: ["fulana"] } }
+    const r: Resultado = {
+      ...base, ok: false, total: 900, limite: 400, contados: [{ arquivo: "a.ts", linhas: 900 }],
+      motivos: ["O PR soma 900 linhas de lógica, acima do limite de 400."],
+    }
+    expect(comentario(r, config, RUN)).toContain("**Como resolver:** divida o PR, ou peça a um aprovador do repo a label «aprovado-nadai».")
+  })
+
   it("reprovado por outro motivo", () => {
     const r: Resultado = { ...base, ok: false, motivos: ["O portão não conseguiu ler o PR: GET /x respondeu 500"] }
     const l = linhas(comentario(r, CONFIG, RUN))

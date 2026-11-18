@@ -7,6 +7,9 @@ export const Config = Schema.Struct({
       limite: Schema.Int.check(Schema.isGreaterThan(0)),
       ignorar: Schema.optionalKey(Schema.Array(Schema.String)),
       labelAprovado: Schema.optionalKey(Schema.String),
+      // GitHub logins allowed to release the limit with the label. Absent: only the repo owner.
+      // Needed when the repo belongs to an organization, whose login is never a label's actor.
+      aprovadores: Schema.optionalKey(Schema.Array(Schema.NonEmptyString).check(Schema.isNonEmpty())),
     }),
   ),
   soDocs: Schema.optionalKey(Schema.Array(Schema.String)),

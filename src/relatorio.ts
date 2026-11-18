@@ -36,7 +36,8 @@ export const comentario = (r: Resultado, config: Config | undefined, runUrl: str
     }
     for (const m of r.motivos.filter((m) => !ehMotivoDeTamanho(m))) linhas.push(`- ${m}`)
     if (doTamanho) {
-      linhas.push(`**Como resolver:** divida o PR, ou peça ao dono do repo a label «${labelDe(config)}».`)
+      const quem = config?.tamanho?.aprovadores === undefined ? "ao dono do repo" : "a um aprovador do repo"
+      linhas.push(`**Como resolver:** divida o PR, ou peça ${quem} a label «${labelDe(config)}».`)
     }
   }
   if (r.sensiveis.length > 0) {

@@ -27836,7 +27836,10 @@ var Config = Schema_exports.Struct({
     Schema_exports.Struct({
       limite: Schema_exports.Int.check(Schema_exports.isGreaterThan(0)),
       ignorar: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),
-      labelAprovado: Schema_exports.optionalKey(Schema_exports.String)
+      labelAprovado: Schema_exports.optionalKey(Schema_exports.String),
+      // GitHub logins allowed to release the limit with the label. Absent: only the repo owner.
+      // Needed when the repo belongs to an organization, whose login is never a label's actor.
+      aprovadores: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.NonEmptyString).check(Schema_exports.isNonEmpty()))
     })
   ),
   soDocs: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),

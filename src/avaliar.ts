@@ -15,7 +15,7 @@ export interface Arquivo {
 export interface Entrada {
   readonly config: Config | undefined
   readonly labels: ReadonlyArray<string>
-  readonly labelAplicadaPeloDono: boolean
+  readonly labelAplicadaPorAprovador: boolean
   readonly autor: string
   readonly headRef: string
   readonly headSha: string
@@ -42,6 +42,19 @@ const caminhos = (a: Arquivo): ReadonlyArray<string> =>
 const falha = (motivo: string): Resultado => ({
   ok: false, motivos: [motivo], contados: [], aprovado: false, tipo: "normal", sensiveis: [],
 })
+
+// Whether the label's last applier may release the limit: one of `aprovadores` (logins compare
+// case-insensitively, as GitHub's do) when the config lists them, otherwise the repo owner.
+export const aplicadaPorAprovador = (
+  aplicadaPor: string | undefined,
+  dono: string,
+  aprovadores: ReadonlyArray<string> | undefined,
+): boolean => {
+  if (aplicadaPor === undefined) return false
+  if (aprovadores === undefined) return aplicadaPor === dono
+  const quem = aplicadaPor.toLowerCase()
+  return aprovadores.some((a) => a.toLowerCase() === quem)
+}
 
 export const avaliar = (e: Entrada): Resultado => {
   if (e.shaDoRun !== undefined && e.headSha !== e.shaDoRun) {
@@ -83,13 +96,14 @@ export const avaliar = (e: Entrada): Resultado => {
   const total = contados.reduce((soma, c) => soma + c.linhas, 0)
   const label = tamanho.labelAprovado ?? LABEL_APROVADO_PADRAO
   const temLabel = e.labels.includes(label)
-  const aprovado = temLabel && e.labelAplicadaPeloDono
+  const aprovado = temLabel && e.labelAplicadaPorAprovador
 
   const motivos: Array<string> = []
   if (total > tamanho.limite && !aprovado) {
     motivos.push(`O PR soma ${total} linhas de lógica, acima do limite de ${tamanho.limite}.`)
     if (temLabel) {
-      motivos.push(`A label «${label}» não foi aplicada pelo dono do repo, então não libera o limite.`)
+      const quem = tamanho.aprovadores === undefined ? "pelo dono do repo" : "por um aprovador do repo"
+      motivos.push(`A label «${label}» não foi aplicada ${quem}, então não libera o limite.`)
     }
   }
   return { ok: motivos.length === 0, motivos, contados, total, limite: tamanho.limite, aprovado, tipo: "normal", sensiveis }

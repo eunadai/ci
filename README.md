@@ -79,6 +79,7 @@ Nenhuma regra fica ligada sem config. O arquivo é lido do **branch base** do PR
 | `tamanho.limite` | Máximo de linhas de lógica (adições + remoções) por PR. |
 | `tamanho.ignorar` | Globs que não contam, somados ao padrão: docs, markdown, testes, gerados, lockfiles, JSON de dados e binários. `package.json` e `tsconfig*.json` sempre contam. |
 | `tamanho.labelAprovado` | A label que libera o limite (padrão `aprovado-nadai`). Ela só vale se quem a aplicou foi o dono do repo. |
+| `tamanho.aprovadores` | Lista (não vazia) de logins do GitHub cuja label libera o limite. Sem o campo, só vale a label aplicada pelo dono do repo. Em repo de organização o dono é a org, que nunca aplica uma label: liste ali as pessoas. Os logins comparam sem diferenciar maiúsculas. Uma lista vazia é config inválida, nunca «qualquer um». |
 | `soDocs` | Globs de documentação: um PR que só mexe nesses arquivos passa. |
 | `isento` | `{ headRef, autor }`: o PR com essa branch **e** esse autor passa (ex.: «Versão nova» do changesets). |
 
@@ -86,7 +87,7 @@ Exemplo:
 
 ```json
 {
-  "tamanho": { "limite": 400, "ignorar": ["prototipo/**"], "labelAprovado": "aprovado-nadai" },
+  "tamanho": { "limite": 400, "ignorar": ["prototipo/**"], "labelAprovado": "aprovado-nadai", "aprovadores": ["fulana", "beltrano"] },
   "soDocs": ["docs/**", "**/*.md"],
   "isento": { "headRef": "changeset-release/main", "autor": "github-actions[bot]" }
 }
