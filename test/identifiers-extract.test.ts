@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { code, occurrences, parseGrep, parseDiff, splitWords, yamlCode } from "../src/identifiers/extract.js"
+import { code, excludePathspecs, expandBraces, legacyIgnore, occurrences, parseGrep, parseDiff, splitWords, yamlCode } from "../src/identifiers/extract.js"
 
 const diff = (file: string, added: ReadonlyArray<string>, opts: { created?: boolean; start?: number } = {}) =>
   [
@@ -90,5 +90,30 @@ describe("parseGrep", () => {
       { identifier: "pedido", file: "src/a.ts" },
       { identifier: "frete", file: "src/x:y.ts" },
     ])
+  })
+})
+
+describe("excludePathspecs", () => {
+  // Pure rule: git pathspecs have no braces, so each alternative becomes its own glob.
+  it("abre as alternativas entre chaves, como o glob do check", () => {
+    expect(expandBraces("**/*.{md,mdx}")).toEqual(["**/*.md", "**/*.mdx"])
+    expect(expandBraces("{a,b}/{c,d}")).toEqual(["a/c", "a/d", "b/c", "b/d"])
+    expect(expandBraces("a{b")).toEqual(["a{b"])
+  })
+
+  // Pure rule: every glob becomes a glob-aware exclude; brackets are literal, as in the check's glob.
+  it("vira um exclude com glob, sem repetir e sem o que o git rejeitaria", () => {
+    expect(excludePathspecs(["legacy/**", "**/*.{xml,db}", "legacy/**", "x[1].ts", "", "/abs", "../fora", "a/./b"])).toEqual([
+      ":(exclude,glob)legacy/**",
+      ":(exclude,glob)**/*.xml",
+      ":(exclude,glob)**/*.db",
+      ":(exclude,glob)x\\[1\\].ts",
+    ])
+  })
+
+  // Pure rule: data files never make a name legacy, even with no config.
+  it("os arquivos de dados ficam sempre de fora do legado", () => {
+    expect(legacyIgnore([])).toEqual(expect.arrayContaining(["**/*.{xml,db}", "**/assets/db/**"]))
+    expect(legacyIgnore(["corpus/**"])).toContain("corpus/**")
   })
 })

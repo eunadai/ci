@@ -1,7 +1,8 @@
 import { Data, Effect, Schema } from "effect"
 import { escaparDado } from "../comando.js"
 import { GitHub } from "../github.js"
-import { type BaseHit, DEFAULT_WORDS, ignored, normalize, occurrences } from "./extract.js"
+import { casaAlgum } from "../glob.js"
+import { type BaseHit, DEFAULT_WORDS, legacyIgnore, normalize, occurrences } from "./extract.js"
 import { CONFIG_PATH, type Finding, passed, type Result, statusDescription, summary, annotations } from "./report.js"
 
 // The shape of .github/identifiers.json, read from the PR's base branch.
@@ -36,7 +37,8 @@ export interface Environment {
   // Of the given words, the ones that are Portuguese: unknown in English, known in pt-BR.
   readonly portuguese: (words: ReadonlyArray<string>) => Effect.Effect<ReadonlySet<string>, CheckError>
   // Where the base has the given identifiers: in file contents and in path segments, with the file.
-  readonly inBase: (identifiers: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<BaseHit>, CheckError>
+  // Files matching `exclude` (globs) never count, so the search may skip them.
+  readonly inBase: (identifiers: ReadonlyArray<string>, exclude: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<BaseHit>, CheckError>
   readonly log: (line: string) => void
   readonly appendSummary: (text: string) => void
 }
@@ -52,9 +54,10 @@ export const result = (env: Environment): Effect.Effect<Result> =>
     const candidates: ReadonlyArray<Finding> = found
       .map((o) => ({ identifier: o.identifier, words: o.words.filter((w) => pt.has(w)), file: o.file, line: o.line }))
       .filter((f) => f.words.length > 0)
-    // Legacy only where the check itself looks: a hit in docs, markdown or i18n does not count.
-    const skip = ignored(config.ignore ?? [])
-    const hits = candidates.length === 0 ? [] : yield* env.inBase(candidates.map((f) => f.identifier))
+    // Legacy only where the check itself looks: a hit in docs, markdown, i18n or a data file does not count.
+    const exclude = legacyIgnore(config.ignore ?? [])
+    const skip = casaAlgum(exclude)
+    const hits = candidates.length === 0 ? [] : yield* env.inBase(candidates.map((f) => f.identifier), exclude)
     const legacy = new Set(hits.filter((h) => !skip(h.file)).map((h) => h.identifier))
     return {
       block: env.block,

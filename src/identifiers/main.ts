@@ -7,7 +7,7 @@ import { appendFileSync } from "node:fs"
 import { join } from "node:path"
 import { githubLive } from "../github.js"
 import { CONFIG_PATH } from "./report.js"
-import { parseGrep } from "./extract.js"
+import { baseHits } from "./base.js"
 import { CheckError, program } from "./program.js"
 
 const env = process.env
@@ -66,18 +66,9 @@ const { ok } = await Effect.runPromise(
           )
         ),
       ),
-    inBase: (identifiers) =>
+    inBase: (identifiers, exclude) =>
       Effect.try({
-        try: () => {
-          const r = run("git", ["-c", "core.quotePath=false", "grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"])
-          if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr.trim())
-          const hits = [...parseGrep(r.stdout, mergeBase)]
-          for (const path of git("-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
-            for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path })
-          }
-          const wanted = new Set(identifiers)
-          return hits.filter((h) => wanted.has(h.identifier))
-        },
+        try: () => baseHits(mergeBase, identifiers, exclude),
         catch: (e) => new CheckError({ message: `não consegui ler a base: ${e instanceof Error ? e.message : String(e)}` }),
       }),
     log: (line) => console.log(line),

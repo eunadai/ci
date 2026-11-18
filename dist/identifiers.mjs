@@ -27827,7 +27827,7 @@ var fetch = /* @__PURE__ */ make33((request3, url, signal, fiber3) => {
 var layer = /* @__PURE__ */ layerMergedContext(/* @__PURE__ */ succeed6(fetch));
 
 // src/identifiers/main.ts
-import { spawnSync } from "node:child_process";
+import { spawnSync as spawnSync2 } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { join as join2 } from "node:path";
 
@@ -28098,6 +28098,9 @@ var summary = (r, max6 = 100) => {
 `;
 };
 
+// src/identifiers/base.ts
+import { spawnSync } from "node:child_process";
+
 // src/identifiers/extract.ts
 var DEFAULT_IGNORE = [
   "docs/**",
@@ -28115,6 +28118,25 @@ var DEFAULT_IGNORE = [
 var DEFAULT_WORDS = ["cpf", "cnpj", "cep", "pix", "boleto", "nfe", "nfse"];
 var MIN_WORD_LENGTH = 4;
 var ignored = (ignore4) => casaAlgum([...DEFAULT_IGNORE, ...ignore4]);
+var LEGACY_IGNORE = ["**/*.{xml,db}", "**/assets/db/**"];
+var legacyIgnore = (ignore4) => [...DEFAULT_IGNORE, ...ignore4, ...LEGACY_IGNORE];
+var expandBraces = (glob) => {
+  let out = [""];
+  let alternatives;
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (alternatives === void 0 && c === "{" && glob.indexOf("}", i + 1) !== -1) alternatives = [""];
+    else if (alternatives !== void 0 && c === "}") {
+      const alts = alternatives;
+      out = out.flatMap((p) => alts.map((a) => p + a));
+      alternatives = void 0;
+    } else if (alternatives !== void 0 && c === ",") alternatives.push("");
+    else if (alternatives !== void 0) alternatives[alternatives.length - 1] += c;
+    else out = out.map((p) => p + c);
+  }
+  return out;
+};
+var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => g !== "" && !g.startsWith("/") && !g.split("/").some((s) => s === "." || s === "..")).map((g) => `:(exclude,glob)${g.replace(/[[\]\\]/g, "\\$&")}`);
 var parseGrep = (output, rev) => output.split("\n").filter((l) => l.startsWith(`${rev}:`)).map((l) => {
   const rest = l.slice(rev.length + 1);
   const i = rest.lastIndexOf(":");
@@ -28223,6 +28245,21 @@ var occurrences = (diff, ignore4) => {
 };
 var normalize3 = (w) => w.normalize("NFD").replace(new RegExp("\\p{M}", "gu"), "").toLowerCase();
 
+// src/identifiers/base.ts
+var git = (cwd, args2) => spawnSync("git", ["-c", "core.quotePath=false", ...args2], { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+var baseHits = (rev, identifiers, exclude, cwd) => {
+  const grep = git(cwd, ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), rev, "--", ...excludePathspecs(exclude)]);
+  if (grep.status !== 0 && grep.status !== 1) throw new Error(`git grep: ${grep.stderr.trim()}`);
+  const tree = git(cwd, ["ls-tree", "-r", "--name-only", rev]);
+  if (tree.status !== 0) throw new Error(`git ls-tree: ${tree.stderr.trim()}`);
+  const hits = [...parseGrep(grep.stdout, rev)];
+  for (const path of tree.stdout.split("\n")) {
+    for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path });
+  }
+  const wanted = new Set(identifiers);
+  return hits.filter((h) => wanted.has(h.identifier));
+};
+
 // src/identifiers/program.ts
 var Config2 = Schema_exports.Struct({
   words: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),
@@ -28243,8 +28280,9 @@ var result3 = (env2) => Effect_exports.gen(function* () {
   const found = occurrences(env2.diff, config.ignore ?? []).map((o) => ({ ...o, words: o.words.filter((w) => !allowed.has(normalize3(w))) })).filter((o) => o.words.length > 0);
   const pt = yield* env2.portuguese([...new Set(found.flatMap((o) => o.words))]);
   const candidates = found.map((o) => ({ identifier: o.identifier, words: o.words.filter((w) => pt.has(w)), file: o.file, line: o.line })).filter((f) => f.words.length > 0);
-  const skip = ignored(config.ignore ?? []);
-  const hits = candidates.length === 0 ? [] : yield* env2.inBase(candidates.map((f) => f.identifier));
+  const exclude = legacyIgnore(config.ignore ?? []);
+  const skip = casaAlgum(exclude);
+  const hits = candidates.length === 0 ? [] : yield* env2.inBase(candidates.map((f) => f.identifier), exclude);
   const legacy = new Set(hits.filter((h) => !skip(h.file)).map((h) => h.identifier));
   return {
     block: env2.block,
@@ -28278,8 +28316,8 @@ var env = process.env;
 var base = env.BASE_SHA ?? "";
 var head5 = env.HEAD_SHA ?? "";
 var cspellDir = env.CSPELL_DIR ?? "";
-var run3 = (cmd, args2, input) => spawnSync(cmd, args2, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-var git = (...args2) => {
+var run3 = (cmd, args2, input) => spawnSync2(cmd, args2, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+var git2 = (...args2) => {
   const r = run3("git", args2);
   if (r.status !== 0) throw new Error(`git ${args2[0]}: ${r.stderr.trim()}`);
   return r.stdout;
@@ -28302,7 +28340,7 @@ var unknown2 = (config, words) => Effect_exports.try({
   },
   catch: (e) => new CheckError({ message: `o cspell falhou: ${e instanceof Error ? e.message : String(e)}` })
 });
-var mergeBase = git("merge-base", base, head5).trim();
+var mergeBase = git2("merge-base", base, head5).trim();
 var configOnBase = run3("git", ["show", `${base}:${CONFIG_PATH}`]);
 var layer2 = githubLive({
   api: env.GITHUB_API_URL ?? "https://api.github.com",
@@ -28316,7 +28354,7 @@ var { ok } = await Effect_exports.runPromise(
     headSha: head5,
     fork: env.FORK === "true",
     runUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY ?? ""}/actions/runs/${env.GITHUB_RUN_ID ?? ""}`,
-    diff: git("diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", mergeBase, head5),
+    diff: git2("diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", mergeBase, head5),
     config: configOnBase.status === 0 ? configOnBase.stdout : void 0,
     // Portuguese: unknown in English (with the software terms), then known in pt-BR.
     portuguese: (words) => unknown2("en.json", words).pipe(
@@ -28326,17 +28364,8 @@ var { ok } = await Effect_exports.runPromise(
         )
       )
     ),
-    inBase: (identifiers) => Effect_exports.try({
-      try: () => {
-        const r = run3("git", ["-c", "core.quotePath=false", "grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), mergeBase, "--"]);
-        if (r.status !== 0 && r.status !== 1) throw new Error(r.stderr.trim());
-        const hits = [...parseGrep(r.stdout, mergeBase)];
-        for (const path of git("-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", mergeBase).split("\n")) {
-          for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path });
-        }
-        const wanted = new Set(identifiers);
-        return hits.filter((h) => wanted.has(h.identifier));
-      },
+    inBase: (identifiers, exclude) => Effect_exports.try({
+      try: () => baseHits(mergeBase, identifiers, exclude),
       catch: (e) => new CheckError({ message: `n\xE3o consegui ler a base: ${e instanceof Error ? e.message : String(e)}` })
     }),
     log: (line) => console.log(line),

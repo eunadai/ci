@@ -42,6 +42,43 @@ export interface BaseHit {
 export const ignored = (ignore: ReadonlyArray<string>): ((path: string) => boolean) =>
   casaAlgum([...DEFAULT_IGNORE, ...ignore])
 
+// Never legacy, on top of the files the check skips: data files. A Bible text in XML or a SQLite
+// file holds common words thousands of times, so a grep there is slow and its hits are not code.
+export const LEGACY_IGNORE: ReadonlyArray<string> = ["**/*.{xml,db}", "**/assets/db/**"]
+
+// The globs whose files never make an identifier legacy: the ones the check skips, plus data files.
+export const legacyIgnore = (ignore: ReadonlyArray<string>): ReadonlyArray<string> =>
+  [...DEFAULT_IGNORE, ...ignore, ...LEGACY_IGNORE]
+
+// A glob with its `{a,b}` alternatives spelled out, as `globParaRegex` reads them: no nesting, and a
+// `{` with no `}` after it is literal. Git pathspecs have no braces.
+export const expandBraces = (glob: string): ReadonlyArray<string> => {
+  let out = [""]
+  let alternatives: Array<string> | undefined
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]!
+    if (alternatives === undefined && c === "{" && glob.indexOf("}", i + 1) !== -1) alternatives = [""]
+    else if (alternatives !== undefined && c === "}") {
+      const alts = alternatives
+      out = out.flatMap((p) => alts.map((a) => p + a))
+      alternatives = undefined
+    } else if (alternatives !== undefined && c === ",") alternatives.push("")
+    else if (alternatives !== undefined) alternatives[alternatives.length - 1] += c
+    else out = out.map((p) => p + c)
+  }
+  return out
+}
+
+// The globs as `git grep` exclude pathspecs. With `glob` magic, `*` and `?` stay inside one folder and
+// `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
+// there, so they are escaped. A glob no repo path can match (empty, absolute, with a `.` or `..`
+// folder) is left out: git would reject it. Excluding is only a shortcut: the hits are still
+// filtered by `legacyIgnore`, and where git excludes more, fewer names are legacy, never more.
+export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
+  [...new Set(globs.flatMap(expandBraces))]
+    .filter((g) => g !== "" && !g.startsWith("/") && !g.split("/").some((s) => s === "." || s === ".."))
+    .map((g) => `:(exclude,glob)${g.replace(/[[\]\\]/g, "\\$&")}`)
+
 // The hits of `git grep -o` run on `rev` without -h: lines of `<rev>:<path>:<identifier>`. The
 // identifier never holds a colon, so the last one splits it from a path that may hold some.
 export const parseGrep = (output: string, rev: string): ReadonlyArray<BaseHit> =>
