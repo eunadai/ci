@@ -93,10 +93,10 @@ describe("identifiers na base", () => {
       "src/locales/pt.json", "app/i18n/x.ts", "pt.po", "package-lock.json", "web/yarn.lock", "Cargo.lock",
       "dist/a.ts", "pkg/node_modules/x/y.ts", "a.min.js", "icon.svg", "api.generated.ts", "data.xml",
       "deep/db/app.db", "apps/mobile/assets/db/x.json", "assets/db/y.ts", "corpus/a/b.ts", "src/corpus/c.ts",
-      "srcdocs/x.ts", "dbx/a.xml.ts",
+      "srcdocs/x.ts", "dbx/a.xml.ts", "lib/one.ts",
     ]
     const g = repo(Object.fromEntries(paths.map((p) => [p, "marker\n"])))
-    const globs = legacyIgnore(["corpus/**"])
+    const globs = legacyIgnore(["corpus/**", "lib"])
     const kept = new Set(baseHits(g.base, ["marker"], globs, g.root).map((h) => h.file))
     const skip = casaAlgum(globs)
     expect([...kept].sort()).toEqual(paths.filter((p) => !skip(p)).sort())

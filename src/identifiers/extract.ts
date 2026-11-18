@@ -71,12 +71,13 @@ export const expandBraces = (glob: string): ReadonlyArray<string> => {
 
 // The globs as `git grep` exclude pathspecs. With `glob` magic, `*` and `?` stay inside one folder and
 // `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
-// there, so they are escaped. A glob no repo path can match (empty, absolute, with a `.` or `..`
-// folder) is left out: git would reject it. Excluding is only a shortcut: the hits are still
+// there, so they are escaped. A glob with no `*` or `?` is left out: git would take it as a folder
+// and exclude what is inside, while the check's glob names one file. So is a glob no repo path can
+// match (absolute, with a `.` or `..` folder): git would reject it. Excluding is only a shortcut: the hits are still
 // filtered by `legacyIgnore`, and where git excludes more, fewer names are legacy, never more.
 export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...new Set(globs.flatMap(expandBraces))]
-    .filter((g) => g !== "" && !g.startsWith("/") && !g.split("/").some((s) => s === "." || s === ".."))
+    .filter((g) => /[*?]/.test(g) && !g.startsWith("/") && !g.split("/").some((s) => s === "." || s === ".."))
     .map((g) => `:(exclude,glob)${g.replace(/[[\]\\]/g, "\\$&")}`)
 
 // The hits of `git grep -o` run on `rev` without -h: lines of `<rev>:<path>:<identifier>`. The
