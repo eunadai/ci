@@ -1,0 +1,82 @@
+# Reusable gate for a scheduled run: did the default branch change since the last green run of the
+# calling workflow? It finds the newest successful run of that same workflow on the default branch
+# (scheduled or manual), diffs its commit against the current one and drops the paths in `ignore`
+# (docs-only by default). Output `changed` is 'true' when something else changed, when there is no
+# green run yet, or when that commit is no longer in the history; 'false' otherwise. A manual run
+# (workflow_dispatch) always gives 'true'. Output `base` is the last green commit ('' when none),
+# which failure-issue.yml uses to list what came in since.
+# The caller grants: contents read, actions read.
+name: Mudou desde o último verde
+
+on:
+  workflow_call:
+    inputs:
+      ignore:
+        description: JSON com regex (ERE) de caminhos que não contam como mudança
+        type: string
+        default: '["^docs/", "\\.md$"]'
+    outputs:
+      changed:
+        description: "'true' quando há mudança que conta desde o último run verde"
+        value: ${{ jobs.changes.outputs.changed }}
+      base:
+        description: Commit do último run verde deste workflow, ou vazio
+        value: ${{ jobs.changes.outputs.base }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+      base: ${{ steps.diff.outputs.base }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Último verde e diff
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+          IGNORE: ${{ inputs.ignore }}
+        run: |
+          # In a called workflow, github.workflow_ref names the caller: owner/repo/.github/workflows/<file>@<ref>.
+          file=${WORKFLOW_REF%@*}
+          file=${file##*/}
+          base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?branch=$BRANCH&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // ""')
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Disparo manual: roda sempre." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2> /dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Sem run verde anterior no histórico: roda." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          pattern=$(node -e 'console.log(JSON.parse(process.env.IGNORE).join("|"))')
+          files=$(git diff --name-only --no-renames "$base" HEAD)
+          if [ -n "$pattern" ]; then
+            counted=$(printf '%s\n' "$files" | grep -vE "$pattern" | grep -c . || true)
+          else
+            counted=$(printf '%s\n' "$files" | grep -c . || true)
+          fi
+          if [ "$counted" -gt 0 ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "$counted arquivo(s) mudaram desde o último verde (\`${base:0:7}\`): roda." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Nada que conte mudou desde o último verde (\`${base:0:7}\`): pulado." >> "$GITHUB_STEP_SUMMARY"
+          fi

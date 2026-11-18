@@ -37,6 +37,24 @@ jobs:
     with:
       comandos: '["python --version", "python -c \"import sys; assert sys.version_info[:2] == (3, 12), sys.version\""]'
 
+  # Self-test of the scheduled-run helpers: the gate against this workflow's own green runs, then the
+  # notice with `success`, which only closes an open issue and so writes nothing here.
+  changes-since-green:
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/changes-since-green.yml # zizmor: ignore[self-repository]
+
+  failure-issue:
+    needs: changes-since-green
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/failure-issue.yml # zizmor: ignore[self-repository]
+    with:
+      result: success
+      base: ${{ needs.changes-since-green.outputs.base }}
+
   # Static analysis of this repo's workflows. Plain output and annotations, no SARIF upload, so it
   # needs no code scanning; any finding fails the job.
   zizmor:
