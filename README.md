@@ -243,7 +243,7 @@ O que nunca entra:
 
 - **comentários e strings com espaço** (texto, mensagem de log): o idioma deles é regra de cada projeto. Uma string sem espaço (chave, rota, nome de evento) é conferida;
 - **arquivos de i18n, docs, markdown, lockfiles, gerados** (`locales/`, `i18n/`, `*.po`, `dist/`, `*.lock` e afins);
-- **código legado**: um identificador que já existe na base, num arquivo que o check confere (código ou nome de arquivo; docs, markdown e i18n não valem), não conta, então chamar `calcularTotal()` de uma linha nova não é achado, mas criar `calcularFrete()` é;
+- **código legado**: um identificador que já existe na base, num arquivo que o check confere (código ou nome de arquivo; docs, markdown, i18n, os globs de `ignore` e arquivos de dados — `*.xml`, `*.db` e `assets/db/` — não valem), não conta, então chamar `calcularTotal()` de uma linha nova não é achado, mas criar `calcularFrete()` é. A busca na base nem lê esses arquivos, então um texto grande ali (uma Bíblia em XML) não deixa o check lento;
 - **palavra que o cspell não conhece em nenhum dos dois** (sigla, jargão, nome de marca): ela não é tratada como português.
 
 Termos do domínio sem tradução já passam: `cpf`, `cnpj`, `cep`, `pix`, `boleto`, `nfe`, `nfse`. O resultado vai para o summary, para anotações nas linhas e para o commit status **`identifiers`** no head do PR. Por padrão, **só avisa**; com `block: true`, um identificador novo em português dá `failure`.
@@ -292,7 +292,7 @@ Opcional, e lido do **branch base** do PR: um PR não consegue liberar as própr
 | Campo | O que faz |
 |---|---|
 | `words` | Palavras que passam, além dos termos do domínio acima (sem diferença de caixa ou acento). |
-| `ignore` | Globs que não são conferidos, somados ao padrão. |
+| `ignore` | Globs que não são conferidos, somados ao padrão. Também ficam fora da busca de legado na base. |
 
 O cspell (10.4.0) e o dicionário pt-BR são fixos pelo `dist/identifiers/package-lock.json`, com hash de integridade, e sobem por PR aqui. Um run de PR leva poucos segundos depois da instalação.
 
