@@ -1,5 +1,5 @@
 import { Data, Effect, Option, Schema } from "effect"
-import { avaliar, type Resultado } from "./avaliar.js"
+import { aplicadaPorAprovador, avaliar, type Resultado } from "./avaliar.js"
 import { escaparDado } from "./comando.js"
 import { type Config, LABEL_APROVADO_PADRAO } from "./config.js"
 import { GitHub, PrDaApi } from "./github.js"
@@ -97,7 +97,9 @@ export const programa = (amb: Ambiente): Effect.Effect<{ readonly ok: boolean },
       const r = avaliar({
         config: configDoBase,
         labels,
-        labelAplicadaPeloDono: Option.getOrUndefined(aplicadaPor) === amb.dono,
+        labelAplicadaPorAprovador: aplicadaPorAprovador(
+          Option.getOrUndefined(aplicadaPor), amb.dono, configDoBase?.tamanho?.aprovadores,
+        ),
         autor: pr.user.login,
         headRef: pr.head.ref,
         headSha: pr.head.sha,

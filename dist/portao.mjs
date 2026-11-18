@@ -27835,7 +27835,10 @@ var Config = Schema_exports.Struct({
     Schema_exports.Struct({
       limite: Schema_exports.Int.check(Schema_exports.isGreaterThan(0)),
       ignorar: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),
-      labelAprovado: Schema_exports.optionalKey(Schema_exports.String)
+      labelAprovado: Schema_exports.optionalKey(Schema_exports.String),
+      // GitHub logins allowed to release the limit with the label. Absent: only the repo owner.
+      // Needed when the repo belongs to an organization, whose login is never a label's actor.
+      aprovadores: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.NonEmptyString).check(Schema_exports.isNonEmpty()))
     })
   ),
   soDocs: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),
@@ -27909,6 +27912,12 @@ var falha = (motivo) => ({
   tipo: "normal",
   sensiveis: []
 });
+var aplicadaPorAprovador = (aplicadaPor, dono, aprovadores) => {
+  if (aplicadaPor === void 0) return false;
+  if (aprovadores === void 0) return aplicadaPor === dono;
+  const quem = aplicadaPor.toLowerCase();
+  return aprovadores.some((a) => a.toLowerCase() === quem);
+};
 var avaliar = (e) => {
   if (e.shaDoRun !== void 0 && e.headSha !== e.shaDoRun) {
     return falha(`O PR mudou depois do disparo: o head \xE9 ${e.headSha}, e este run \xE9 do commit ${e.shaDoRun}.`);
@@ -27944,12 +27953,13 @@ var avaliar = (e) => {
   const total = contados.reduce((soma, c) => soma + c.linhas, 0);
   const label = tamanho.labelAprovado ?? LABEL_APROVADO_PADRAO;
   const temLabel = e.labels.includes(label);
-  const aprovado = temLabel && e.labelAplicadaPeloDono;
+  const aprovado = temLabel && e.labelAplicadaPorAprovador;
   const motivos = [];
   if (total > tamanho.limite && !aprovado) {
     motivos.push(`O PR soma ${total} linhas de l\xF3gica, acima do limite de ${tamanho.limite}.`);
     if (temLabel) {
-      motivos.push(`A label \xAB${label}\xBB n\xE3o foi aplicada pelo dono do repo, ent\xE3o n\xE3o libera o limite.`);
+      const quem = tamanho.aprovadores === void 0 ? "pelo dono do repo" : "por um aprovador do repo";
+      motivos.push(`A label \xAB${label}\xBB n\xE3o foi aplicada ${quem}, ent\xE3o n\xE3o libera o limite.`);
     }
   }
   return { ok: motivos.length === 0, motivos, contados, total, limite: tamanho.limite, aprovado, tipo: "normal", sensiveis };
@@ -28147,7 +28157,8 @@ var comentario = (r, config, runUrl) => {
     }
     for (const m of r.motivos.filter((m2) => !ehMotivoDeTamanho(m2))) linhas.push(`- ${m}`);
     if (doTamanho) {
-      linhas.push(`**Como resolver:** divida o PR, ou pe\xE7a ao dono do repo a label \xAB${labelDe(config)}\xBB.`);
+      const quem = config?.tamanho?.aprovadores === void 0 ? "ao dono do repo" : "a um aprovador do repo";
+      linhas.push(`**Como resolver:** divida o PR, ou pe\xE7a ${quem} a label \xAB${labelDe(config)}\xBB.`);
     }
   }
   if (r.sensiveis.length > 0) {
@@ -28241,7 +28252,11 @@ var programa = (amb) => Effect_exports.gen(function* () {
     const r = avaliar({
       config: configDoBase,
       labels: labels2,
-      labelAplicadaPeloDono: Option_exports.getOrUndefined(aplicadaPor) === amb.dono,
+      labelAplicadaPorAprovador: aplicadaPorAprovador(
+        Option_exports.getOrUndefined(aplicadaPor),
+        amb.dono,
+        configDoBase?.tamanho?.aprovadores
+      ),
       autor: pr.user.login,
       headRef: pr.head.ref,
       headSha: pr.head.sha,

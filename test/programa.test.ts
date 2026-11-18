@@ -17,6 +17,7 @@ interface Falso {
   configErro?: boolean
   configMensagem?: string
   pr?: PrDaApi
+  aplicadaPor?: string
 }
 
 const montar = (f: Falso = {}) => {
@@ -29,7 +30,7 @@ const montar = (f: Falso = {}) => {
       f.configErro
         ? Effect.fail(new ConfigInvalida({ mensagem: f.configMensagem ?? ".github/portao.json no base não é JSON válido" }))
         : Effect.succeed(f.config ?? Option.some<Config>({ tamanho: { limite: 400 } })),
-    labelAplicadaPor: () => Effect.succeed(Option.none()),
+    labelAplicadaPor: () => Effect.succeed(Option.fromNullishOr(f.aplicadaPor)),
     gravarComentario: (_n, corpo) =>
       f.comentarioFalha
         ? Effect.fail(new ErroApi({ mensagem: "POST /x respondeu 403" }))
@@ -227,3 +228,43 @@ it.effect("dispatch com o App sem sha, PR de fork cujo branch se chama main: ped
     )
   }).pipe(Effect.provide(m.layer))
 })
+
+// A repo owned by an organization: the owner is the org, which is never the actor of a label event.
+const PR_COM_LABEL: PrDaApi = { ...PR, labels: [{ name: "aprovado-nadai" }] }
+const GRANDE = Effect.succeed([{ filename: "src/a.ts", additions: 900, deletions: 0 }])
+const configCom = (aprovadores?: ReadonlyArray<string>): Option.Option<Config> =>
+  Option.some<Config>({ tamanho: { limite: 400, ...(aprovadores === undefined ? {} : { aprovadores }) } })
+const rodarComLabel = (aplicadaPor: string, aprovadores?: ReadonlyArray<string>) => {
+  const m = montar({ pr: PR_COM_LABEL, arquivos: GRANDE, config: configCom(aprovadores), aplicadaPor })
+  const run = programa(m.amb({ dono: "minha-org", payload: { pull_request: PR_COM_LABEL } })).pipe(Effect.provide(m.layer))
+  return Effect.map(run, (r) => ({ ok: r.ok, comentarios: m.comentarios }))
+}
+
+it.effect("repo de organização: a label de quem está em aprovadores libera o limite", () =>
+  Effect.gen(function* () {
+    const r = yield* rodarComLabel("fulana", ["fulana"])
+    expect(r.ok).toBe(true)
+    expect(r.comentarios[0]).toContain("liberado pela label «aprovado-nadai»")
+  }))
+
+it.effect("repo de organização: a label de quem não está em aprovadores não libera, e o comentário diz por quê", () =>
+  Effect.gen(function* () {
+    const r = yield* rodarComLabel("intruso", ["fulana"])
+    expect(r.ok).toBe(false)
+    expect(r.comentarios[0]).toContain("- A label «aprovado-nadai» não foi aplicada por um aprovador do repo, então não libera o limite.")
+    expect(r.comentarios[0]).toContain("peça a um aprovador do repo a label «aprovado-nadai»")
+  }))
+
+it.effect("sem aprovadores vale a regra antiga: a label do dono libera, a de um membro da org não", () =>
+  Effect.gen(function* () {
+    expect((yield* rodarComLabel("minha-org")).ok).toBe(true)
+    const r = yield* rodarComLabel("fulana")
+    expect(r.ok).toBe(false)
+    expect(r.comentarios[0]).toContain("não foi aplicada pelo dono do repo")
+    expect(r.comentarios[0]).toContain("peça ao dono do repo a label")
+  }))
+
+it.effect("com aprovadores, a label do dono do repo deixa de valer se ele não está na lista", () =>
+  Effect.gen(function* () {
+    expect((yield* rodarComLabel("minha-org", ["fulana"])).ok).toBe(false)
+  }))

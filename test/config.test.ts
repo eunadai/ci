@@ -27,3 +27,24 @@ it.effect("chave desconhecida (erro de digitação) falha em vez de desligar o p
     expect(erro._tag).toBe("ConfigInvalida")
     expect(erro.mensagem).toContain("Tamanho")
   }))
+
+it.effect("aprovadores é uma lista de logins", () =>
+  Effect.gen(function* () {
+    const config = yield* decodeConfig({ tamanho: { limite: 400, aprovadores: ["fulana", "beltrano"] } })
+    expect(config.tamanho?.aprovadores).toEqual(["fulana", "beltrano"])
+  }))
+
+it.effect("aprovadores vazio falha em vez de liberar qualquer um", () =>
+  Effect.gen(function* () {
+    const erro = yield* Effect.flip(decodeConfig({ tamanho: { limite: 400, aprovadores: [] } }))
+    expect(erro._tag).toBe("ConfigInvalida")
+    expect(erro.mensagem).toContain("aprovadores")
+  }))
+
+it.effect("aprovadores com tipo errado ou login vazio falha", () =>
+  Effect.gen(function* () {
+    for (const aprovadores of ["fulana", [1], [""]]) {
+      const erro = yield* Effect.flip(decodeConfig({ tamanho: { limite: 400, aprovadores } }))
+      expect(erro._tag).toBe("ConfigInvalida")
+    }
+  }))

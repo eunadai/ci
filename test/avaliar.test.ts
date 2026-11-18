@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { avaliar, type Entrada } from "../src/avaliar.js"
+import { aplicadaPorAprovador, avaliar, type Entrada } from "../src/avaliar.js"
 import type { Config } from "../src/config.js"
 
 const arquivo = (filename: string, additions: number, deletions = 0) => ({ filename, additions, deletions })
@@ -15,7 +15,7 @@ const entrada = (over: Partial<Entrada> = {}): Entrada => {
   return {
     config: CONFIG,
     labels: [],
-    labelAplicadaPeloDono: false,
+    labelAplicadaPorAprovador: false,
     autor: "nadairafael",
     headRef: "feat/x",
     headSha: "a",
@@ -74,7 +74,7 @@ describe("avaliar", () => {
 
   it("label do dono libera o tamanho", () => {
     const r = avaliar(entrada({
-      labels: ["aprovado-nadai"], labelAplicadaPeloDono: true, arquivos: [arquivo("src/a.ts", 900)],
+      labels: ["aprovado-nadai"], labelAplicadaPorAprovador: true, arquivos: [arquivo("src/a.ts", 900)],
     }))
     expect(r.ok).toBe(true)
     expect(r.aprovado).toBe(true)
@@ -82,11 +82,18 @@ describe("avaliar", () => {
 
   it("label de outra pessoa não libera", () => {
     const r = avaliar(entrada({
-      labels: ["aprovado-nadai"], labelAplicadaPeloDono: false, arquivos: [arquivo("src/a.ts", 900)],
+      labels: ["aprovado-nadai"], labelAplicadaPorAprovador: false, arquivos: [arquivo("src/a.ts", 900)],
     }))
     expect(r.ok).toBe(false)
     expect(r.aprovado).toBe(false)
     expect(r.motivos.join("\n")).toContain("não foi aplicada pelo dono do repo")
+  })
+
+  it("com aprovadores na config, a label negada diz «aprovador do repo»", () => {
+    const config: Config = { ...CONFIG, tamanho: { limite: 400, aprovadores: ["fulana"] } }
+    const r = avaliar(entrada({ config, labels: ["aprovado-nadai"], arquivos: [arquivo("src/a.ts", 900)] }))
+    expect(r.ok).toBe(false)
+    expect(r.motivos.join("\n")).toContain("não foi aplicada por um aprovador do repo")
   })
 
   it("lista incompleta reprova", () => {
@@ -157,5 +164,28 @@ describe("renomeios", () => {
   it("renomear o portao.json para longe é sensível", () => {
     const r = avaliar(entrada({ arquivos: [{ filename: "x.json", previous_filename: ".github/portao.json", additions: 0, deletions: 0 }] }))
     expect(r.sensiveis).toEqual([".github/portao.json"])
+  })
+})
+
+describe("aplicadaPorAprovador", () => {
+  it("sem aprovadores, só o dono vale (igualdade exata)", () => {
+    expect(aplicadaPorAprovador("dono", "dono", undefined)).toBe(true)
+    expect(aplicadaPorAprovador("outro", "dono", undefined)).toBe(false)
+  })
+
+  it("com aprovadores, só quem está na lista vale, e o dono sai da regra", () => {
+    expect(aplicadaPorAprovador("fulana", "org", ["fulana", "beltrano"])).toBe(true)
+    expect(aplicadaPorAprovador("org", "org", ["fulana"])).toBe(false)
+    expect(aplicadaPorAprovador("intruso", "org", ["fulana"])).toBe(false)
+  })
+
+  it("os logins comparam sem diferenciar maiúsculas", () => {
+    expect(aplicadaPorAprovador("Fulana", "org", ["fulana"])).toBe(true)
+    expect(aplicadaPorAprovador("fulana", "org", ["FULANA"])).toBe(true)
+  })
+
+  it("sem ninguém que aplicou a label, nada vale", () => {
+    expect(aplicadaPorAprovador(undefined, "dono", undefined)).toBe(false)
+    expect(aplicadaPorAprovador(undefined, "dono", ["fulana"])).toBe(false)
   })
 })
