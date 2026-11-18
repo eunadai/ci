@@ -28136,7 +28136,12 @@ var expandBraces = (glob) => {
   }
   return out;
 };
-var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => /[*?]/.test(g) && !g.startsWith("/") && !g.split("/").some((s) => s === "." || s === "..")).map((g) => `:(exclude,glob)${g.replace(/[[\]\\]/g, "\\$&")}`);
+var escapeGlob = (s) => s.replace(/[[\]\\]/g, "\\$&");
+var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !g.split("/").some((s) => s === "" || s === "." || s === "..")).map((g) => {
+  if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`;
+  const chars = [...g];
+  return `:(exclude,glob)${escapeGlob(chars.slice(0, -1).join(""))}\\${chars.at(-1)}`;
+});
 var parseGrep = (output, rev) => output.split("\n").filter((l) => l.startsWith(`${rev}:`)).map((l) => {
   const rest = l.slice(rev.length + 1);
   const i = rest.lastIndexOf(":");
