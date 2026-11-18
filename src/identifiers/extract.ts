@@ -69,16 +69,24 @@ export const expandBraces = (glob: string): ReadonlyArray<string> => {
   return out
 }
 
+const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
+
 // The globs as `git grep` exclude pathspecs. With `glob` magic, `*` and `?` stay inside one folder and
 // `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
-// there, so they are escaped. A glob with no `*` or `?` is left out: git would take it as a folder
-// and exclude what is inside, while the check's glob names one file. So is a glob no repo path can
-// match (absolute, with a `.` or `..` folder): git would reject it. Excluding is only a shortcut: the hits are still
-// filtered by `legacyIgnore`, and where git excludes more, fewer names are legacy, never more.
+// there, so they are escaped. A glob with no `*` or `?` names one file, but git would also take it as a
+// folder and exclude what is inside, so its last character is escaped (`lib` → `li\b`): git matches a
+// pathspec with an escape against the whole path only. A glob no repo path can match (absolute, or with
+// an empty, `.` or `..` folder) is left out: git would reject some, and would read `a//b` as `a/b`.
+// Excluding is only a shortcut: the hits are still filtered by `legacyIgnore`, and where git excludes
+// more, fewer names are legacy, never more.
 export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...new Set(globs.flatMap(expandBraces))]
-    .filter((g) => /[*?]/.test(g) && !g.startsWith("/") && !g.split("/").some((s) => s === "." || s === ".."))
-    .map((g) => `:(exclude,glob)${g.replace(/[[\]\\]/g, "\\$&")}`)
+    .filter((g) => !g.split("/").some((s) => s === "" || s === "." || s === ".."))
+    .map((g) => {
+      if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`
+      const chars = [...g]
+      return `:(exclude,glob)${escapeGlob(chars.slice(0, -1).join(""))}\\${chars.at(-1)}`
+    })
 
 // The hits of `git grep -o` run on `rev` without -h: lines of `<rev>:<path>:<identifier>`. The
 // identifier never holds a colon, so the last one splits it from a path that may hold some.

@@ -85,6 +85,36 @@ describe("identifiers na base", () => {
     expect(verdict.legacy).toBe(1)
   }, 10_000)
 
+  // A path in `ignore` with no wildcard names one file: the grep never reads it, and the verdict is
+  // the one the hits filter alone gives.
+  it("o caminho exato do ignore fica fora do grep, e o resultado é o mesmo", async () => {
+    const x = repo({
+      "src/velho.ts": "export const ordem = 1\n",
+      "src/legado.ts": "export const trecho = 1\n",
+      ".github/identifiers.json": JSON.stringify({ ignore: ["src/velho.ts"] }),
+    })
+    const globs = legacyIgnore(["src/velho.ts"])
+    expect(baseHits(x.base, ["ordem", "trecho"], globs, x.root)).toEqual([{ identifier: "trecho", file: "src/legado.ts" }])
+    const head = x.commit({ "src/novo.ts": "export const texto = ordem + trecho\n" })
+    const verdict = (inBase: Environment["inBase"]) => Effect.runPromise(result({
+      block: true,
+      headSha: head,
+      fork: false,
+      runUrl: "https://run",
+      diff: x.git("diff", "-U0", "--no-color", "--no-renames", x.base, head),
+      config: x.git("show", `${x.base}:.github/identifiers.json`),
+      portuguese: (words) => Effect.succeed(new Set(words.filter((w) => PT.has(w)))),
+      inBase,
+      log: () => {},
+      appendSummary: () => {},
+    }))
+    const excluded = await verdict((identifiers, exclude) => Effect.sync(() => baseHits(x.base, identifiers, exclude, x.root)))
+    const unexcluded = await verdict((identifiers) => Effect.sync(() => baseHits(x.base, identifiers, [], x.root)))
+    expect(excluded).toEqual(unexcluded)
+    expect(excluded.findings.map((f) => f.identifier).sort()).toEqual(["ordem", "texto"])
+    expect(excluded.legacy).toBe(1)
+  })
+
   // The pathspecs must exclude what the check's glob ignores, and nothing it keeps. The marker is in
   // the contents only, so every hit comes from the grep.
   it("o git exclui o mesmo que o glob do check", () => {

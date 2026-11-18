@@ -102,13 +102,16 @@ describe("excludePathspecs", () => {
   })
 
   // Pure rule: every glob becomes a glob-aware exclude; brackets are literal, as in the check's glob. A
-  // glob without wildcards stays out: git would exclude it as a folder.
+  // glob without wildcards gets its last character escaped, so git never takes it as a folder.
   it("vira um exclude com glob, sem repetir e sem o que o git rejeitaria", () => {
-    expect(excludePathspecs(["legacy/**", "**/*.{xml,db}", "legacy/**", "x[1]?.ts", "", "src", "/abs/*", "../fora/*", "a/./*"])).toEqual([
+    expect(excludePathspecs(["legacy/**", "**/*.{xml,db}", "legacy/**", "x[1]?.ts", "", "src", "a/b]", "café", "lib/", "a//b", "/abs/*", "../fora/*", "a/./*"])).toEqual([
       ":(exclude,glob)legacy/**",
       ":(exclude,glob)**/*.xml",
       ":(exclude,glob)**/*.db",
       ":(exclude,glob)x\\[1\\]?.ts",
+      ":(exclude,glob)sr\\c",
+      ":(exclude,glob)a/b\\]",
+      ":(exclude,glob)caf\\é",
     ])
   })
 
