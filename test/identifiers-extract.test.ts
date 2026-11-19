@@ -115,6 +115,12 @@ describe("excludePathspecs", () => {
     ])
   })
 
+  // Pure rule: a NUL can't go in a process argument, so a glob with one is left out, with or without
+  // wildcards; the hits filter still ignores what it matches.
+  it("um glob com NUL fica fora dos pathspecs", () => {
+    expect(excludePathspecs(["a\u0000*", "a\u0000b", "legacy/**"])).toEqual([":(exclude,glob)legacy/**"])
+  })
+
   // Pure rule: data files never make a name legacy, even with no config.
   it("os arquivos de dados ficam sempre de fora do legado", () => {
     expect(legacyIgnore([])).toEqual(expect.arrayContaining(["**/*.{xml,db}", "**/assets/db/**"]))

@@ -115,6 +115,18 @@ describe("identifiers na base", () => {
     expect(excluded.legacy).toBe(1)
   })
 
+  // A NUL in an `ignore` glob would make the grep's argument invalid: the glob stays out of the grep,
+  // and the hits are the same as with no such glob.
+  it("um glob com NUL no ignore não quebra a busca, e o resultado é o mesmo", () => {
+    const n = repo({
+      "src/legado.ts": "export const ordem = 1\n",
+      ".github/identifiers.json": JSON.stringify({ ignore: ["a\u0000*", "a\u0000b"] }),
+    })
+    const without = baseHits(n.base, ["ordem"], legacyIgnore([]), n.root)
+    expect(baseHits(n.base, ["ordem"], legacyIgnore(["a\u0000*", "a\u0000b"]), n.root)).toEqual(without)
+    expect(without).toEqual([{ identifier: "ordem", file: "src/legado.ts" }])
+  })
+
   // The pathspecs must exclude what the check's glob ignores, and nothing it keeps. The marker is in
   // the contents only, so every hit comes from the grep.
   it("o git exclui o mesmo que o glob do check", () => {
