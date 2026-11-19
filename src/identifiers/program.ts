@@ -2,7 +2,7 @@ import { Data, Effect, Schema } from "effect"
 import { escaparDado } from "../comando.js"
 import { GitHub } from "../github.js"
 import { casaAlgum } from "../glob.js"
-import { type BaseHit, DEFAULT_WORDS, legacyIgnore, normalize, occurrences } from "./extract.js"
+import { type BaseHit, deadGlobs, DEFAULT_WORDS, legacyIgnore, normalize, occurrences } from "./extract.js"
 import { CONFIG_PATH, type Finding, passed, type Result, statusDescription, summary, annotations } from "./report.js"
 
 // The shape of .github/identifiers.json, read from the PR's base branch.
@@ -64,8 +64,9 @@ export const result = (env: Environment): Effect.Effect<Result> =>
       findings: candidates.filter((f) => !legacy.has(f.identifier)),
       legacy: candidates.filter((f) => legacy.has(f.identifier)).length,
       error: undefined,
+      deadIgnore: deadGlobs(config.ignore ?? []),
     } satisfies Result
-  }).pipe(Effect.catch((e) => Effect.succeed({ block: env.block, findings: [], legacy: 0, error: e.message })))
+  }).pipe(Effect.catch((e) => Effect.succeed({ block: env.block, findings: [], legacy: 0, error: e.message, deadIgnore: [] })))
 
 // Annotations, summary and the «identifiers» status on the PR head. A failed write is a warning: the
 // verdict stands. The exception is a 403 outside a fork: the caller is missing `statuses: write`.

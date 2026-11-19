@@ -28065,12 +28065,16 @@ var statusDescription = (r) => {
   return text2.length <= 140 ? text2 : `${text2.slice(0, 139)}\u2026`;
 };
 var HOW_TO = `Use um nome em ingl\xEAs. Se \xE9 um termo do dom\xEDnio sem tradu\xE7\xE3o, ponha a palavra em \`words\` no \`${CONFIG_PATH}\`; se \xE9 texto para o usu\xE1rio, ele vai no arquivo de i18n.`;
+var DEAD_HOW_TO = "Um glob casa com o caminho inteiro a partir da raiz, sem `/` no come\xE7o ou no fim e sem pasta vazia, `.` ou `..`. Para uma pasta, use `pasta/**`.";
 var annotations = (r, max6 = 50) => {
   const level = r.block ? "error" : "warning";
   const lines = r.findings.slice(0, max6).map(
     (f) => `::${level} file=${escaparPropriedade(f.file)},line=${f.line},title=Identificador em portugu\xEAs::${escaparDado(`\xAB${f.identifier}\xBB: ${f.words.join(", ")}. ${HOW_TO}`)}`
   );
   if (r.error !== void 0) lines.push(`::${level} title=Identificadores::${escaparDado(`n\xE3o rodou: ${r.error}`)}`);
+  for (const g of r.deadIgnore) {
+    lines.push(`::warning title=Glob do ignore sem efeito::${escaparDado(`O glob ${JSON.stringify(g)} do \`ignore\` do \`${CONFIG_PATH}\` nunca casa com um caminho, ent\xE3o n\xE3o ignora nada. ${DEAD_HOW_TO}`)}`);
+  }
   return lines;
 };
 var cell = (text2) => text2.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
@@ -28092,6 +28096,11 @@ var summary = (r, max6 = 100) => {
   if (r.legacy > 0) {
     parts2.push(
       r.legacy === 1 ? "1 identificador em portugu\xEAs que j\xE1 existe na base n\xE3o conta (c\xF3digo legado)." : `${r.legacy} identificadores em portugu\xEAs que j\xE1 existem na base n\xE3o contam (c\xF3digo legado).`
+    );
+  }
+  if (r.deadIgnore.length > 0) {
+    parts2.push(
+      `\u26A0\uFE0F O \`ignore\` do \`${CONFIG_PATH}\` tem globs que nunca casam com um caminho e n\xE3o ignoram nada: ${r.deadIgnore.map((g) => `\`${cell(JSON.stringify(g))}\``).join(", ")}. ${DEAD_HOW_TO}`
     );
   }
   return `${parts2.join("\n\n")}
@@ -28136,8 +28145,10 @@ var expandBraces = (glob) => {
   }
   return out;
 };
+var matchesNoPath = (glob) => glob.includes("\0") || glob.split("/").some((s) => s === "" || s === "." || s === "..");
+var deadGlobs = (globs) => [...new Set(globs)].filter((g) => expandBraces(g).every(matchesNoPath));
 var escapeGlob = (s) => s.replace(/[[\]\\]/g, "\\$&");
-var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === "..")).map((g) => {
+var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !matchesNoPath(g)).map((g) => {
   if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`;
   const chars = [...g];
   return `:(exclude,glob)${escapeGlob(chars.slice(0, -1).join(""))}\\${chars.at(-1)}`;
@@ -28293,9 +28304,10 @@ var result3 = (env2) => Effect_exports.gen(function* () {
     block: env2.block,
     findings: candidates.filter((f) => !legacy.has(f.identifier)),
     legacy: candidates.filter((f) => legacy.has(f.identifier)).length,
-    error: void 0
+    error: void 0,
+    deadIgnore: deadGlobs(config.ignore ?? [])
   };
-}).pipe(Effect_exports.catch((e) => Effect_exports.succeed({ block: env2.block, findings: [], legacy: 0, error: e.message })));
+}).pipe(Effect_exports.catch((e) => Effect_exports.succeed({ block: env2.block, findings: [], legacy: 0, error: e.message, deadIgnore: [] })));
 var program = (env2) => Effect_exports.gen(function* () {
   const gh = yield* GitHub;
   const r = yield* result3(env2);

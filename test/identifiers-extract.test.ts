@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
-import { code, excludePathspecs, expandBraces, legacyIgnore, occurrences, parseGrep, parseDiff, splitWords, yamlCode } from "../src/identifiers/extract.js"
+import { casaAlgum } from "../src/glob.js"
+import { code, deadGlobs, excludePathspecs, expandBraces, legacyIgnore, occurrences, parseGrep, parseDiff, splitWords, yamlCode } from "../src/identifiers/extract.js"
 
 const diff = (file: string, added: ReadonlyArray<string>, opts: { created?: boolean; start?: number } = {}) =>
   [
@@ -119,6 +120,16 @@ describe("excludePathspecs", () => {
   // wildcards; the hits filter still ignores what it matches.
   it("um glob com NUL fica fora dos pathspecs", () => {
     expect(excludePathspecs(["a\u0000*", "a\u0000b", "legacy/**"])).toEqual([":(exclude,glob)legacy/**"])
+  })
+
+  // Pure rule: a glob whose every alternative is absolute, has an empty, `.` or `..` folder, or a NUL
+  // ignores nothing, for the check's glob too; each is listed once, in order.
+  it("aponta os globs do ignore que nunca casam com um caminho", () => {
+    const dead = deadGlobs(["lib/", "/abs/*", "a//b", "./x", "a/../b", "**/", "a\u0000*", "{lib/,src/}", "", "lib/"])
+    expect(dead).toEqual(["lib/", "/abs/*", "a//b", "./x", "a/../b", "**/", "a\u0000*", "{lib/,src/}", ""])
+    expect(deadGlobs(["legacy/**", "src", ".github/**", "{lib/,src/**}", "a/.b/*"])).toEqual([])
+    const paths = ["lib", "lib/a.ts", "abs/a", "a/b", "x", "a/b/c", "src", "src/a.ts", "a"]
+    expect(paths.filter(casaAlgum(dead))).toEqual([])
   })
 
   // Pure rule: data files never make a name legacy, even with no config.

@@ -69,20 +69,29 @@ export const expandBraces = (glob: string): ReadonlyArray<string> => {
   return out
 }
 
+// A glob (with no braces) that no repo path matches: a path is relative, has no empty, `.` or `..`
+// folder, and no NUL.
+const matchesNoPath = (glob: string): boolean =>
+  glob.includes("\0") || glob.split("/").some((s) => s === "" || s === "." || s === "..")
+
+// The globs that ignore nothing, as written: every alternative matches no repo path.
+export const deadGlobs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
+  [...new Set(globs)].filter((g) => expandBraces(g).every(matchesNoPath))
+
 const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
 
 // The globs as `git grep` exclude pathspecs. With `glob` magic, `*` and `?` stay inside one folder and
 // `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
 // there, so they are escaped. A glob with no `*` or `?` names one file, but git would also take it as a
 // folder and exclude what is inside, so its last character is escaped (`lib` → `li\b`): git matches a
-// pathspec with an escape against the whole path only. A glob no repo path can match (absolute, with
-// an empty, `.` or `..` folder, or with a NUL) is left out: git would reject some, would read `a//b`
-// as `a/b`, and a NUL can't go in a process argument.
+// pathspec with an escape against the whole path only. A glob no repo path can match (`matchesNoPath`)
+// is left out: git would reject some, would read `a//b` as `a/b`, and a NUL can't go in a process
+// argument.
 // Excluding is only a shortcut: the hits are still filtered by `legacyIgnore`, and where git excludes
 // more, fewer names are legacy, never more.
 export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...new Set(globs.flatMap(expandBraces))]
-    .filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === ".."))
+    .filter((g) => !matchesNoPath(g))
     .map((g) => {
       if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`
       const chars = [...g]

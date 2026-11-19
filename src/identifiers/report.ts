@@ -19,6 +19,8 @@ export interface Result {
   readonly legacy: number
   // Why the check could not run (invalid config, cspell failed); undefined when it ran.
   readonly error: string | undefined
+  // The `ignore` globs that match no path: a warning only, never part of the verdict.
+  readonly deadIgnore: ReadonlyArray<string>
 }
 
 // Blocks only with `block`: then a new finding, or a check that did not run, fails the run.
@@ -47,6 +49,10 @@ const HOW_TO =
   `Use um nome em inglês. Se é um termo do domínio sem tradução, ponha a palavra em \`words\` no \`${CONFIG_PATH}\`; ` +
   "se é texto para o usuário, ele vai no arquivo de i18n."
 
+const DEAD_HOW_TO =
+  "Um glob casa com o caminho inteiro a partir da raiz, sem `/` no começo ou no fim e sem pasta vazia, `.` ou `..`. " +
+  "Para uma pasta, use `pasta/**`."
+
 // One annotation per finding, up to `max`; the summary lists the rest.
 export const annotations = (r: Result, max = 50): ReadonlyArray<string> => {
   const level = r.block ? "error" : "warning"
@@ -56,6 +62,11 @@ export const annotations = (r: Result, max = 50): ReadonlyArray<string> => {
     }`
   )
   if (r.error !== undefined) lines.push(`::${level} title=Identificadores::${escaparDado(`não rodou: ${r.error}`)}`)
+  for (const g of r.deadIgnore) {
+    lines.push(`::warning title=Glob do ignore sem efeito::${
+      escaparDado(`O glob ${JSON.stringify(g)} do \`ignore\` do \`${CONFIG_PATH}\` nunca casa com um caminho, então não ignora nada. ${DEAD_HOW_TO}`)
+    }`)
+  }
   return lines
 }
 
@@ -81,6 +92,13 @@ export const summary = (r: Result, max = 100): string => {
       r.legacy === 1
         ? "1 identificador em português que já existe na base não conta (código legado)."
         : `${r.legacy} identificadores em português que já existem na base não contam (código legado).`,
+    )
+  }
+  if (r.deadIgnore.length > 0) {
+    parts.push(
+      `⚠️ O \`ignore\` do \`${CONFIG_PATH}\` tem globs que nunca casam com um caminho e não ignoram nada: ${
+        r.deadIgnore.map((g) => `\`${cell(JSON.stringify(g))}\``).join(", ")
+      }. ${DEAD_HOW_TO}`,
     )
   }
   return `${parts.join("\n\n")}\n`
