@@ -28147,6 +28147,8 @@ var expandBraces = (glob) => {
 };
 var matchesSomePath = (glob) => {
   let ends = /* @__PURE__ */ new Set(["start"]);
+  let before;
+  let alternatives = /* @__PURE__ */ new Set();
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
     if (c === "*" && glob[i + 1] === "*" && glob[i + 2] === "/") {
@@ -28155,6 +28157,18 @@ var matchesSomePath = (glob) => {
       continue;
     }
     if (c === "*" && glob[i + 1] === "*") i += 1;
+    if (c === "{" && before === void 0 && glob.indexOf("}", i + 1) !== -1) {
+      before = ends;
+      alternatives = /* @__PURE__ */ new Set();
+      ends = new Set(before);
+      continue;
+    }
+    if ((c === "," || c === "}") && before !== void 0) {
+      alternatives = /* @__PURE__ */ new Set([...alternatives, ...ends]);
+      ends = c === "," ? new Set(before) : alternatives;
+      if (c === "}") before = void 0;
+      continue;
+    }
     const next2 = /* @__PURE__ */ new Set();
     for (const e of ends) {
       if (c === "\0") continue;
@@ -28167,7 +28181,7 @@ var matchesSomePath = (glob) => {
   }
   return ends.has("name");
 };
-var deadGlobs = (globs) => [...new Set(globs)].filter((g) => !expandBraces(g).some(matchesSomePath));
+var deadGlobs = (globs) => [...new Set(globs)].filter((g) => !matchesSomePath(g));
 var escapeGlob = (s) => s.replace(/[[\]\\]/g, "\\$&");
 var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === "..")).map((g) => {
   if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`;

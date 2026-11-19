@@ -69,13 +69,16 @@ export const expandBraces = (glob: string): ReadonlyArray<string> => {
   return out
 }
 
-// Whether the check's glob (`globParaRegex`, with no braces) can match a repo path: one that is
-// relative and has no empty, `.` or `..` folder and no NUL. `*`, `?` and `**` can stand for one plain
-// character, which never hurts; the `**/` of `src**/` may match nothing, so it is either nothing or a
-// plain folder. `ends` holds what the path so far can end in.
+// Whether the check's glob can match a repo path: one that is relative and has no empty, `.` or `..`
+// folder and no NUL. The walk reads the glob as `globParaRegex` does, braces included. `*`, `?` and `**`
+// can stand for one plain character, which never hurts; the `**/` of `src**/` may match nothing, so it
+// is either nothing or a plain folder. `ends` holds what the path so far can end in; inside braces,
+// `before` is where each alternative starts and `alternatives` where the ones read so far end.
 type End = "start" | "slash" | "dot" | "dots" | "name"
 const matchesSomePath = (glob: string): boolean => {
   let ends = new Set<End>(["start"])
+  let before: Set<End> | undefined
+  let alternatives = new Set<End>()
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i]!
     if (c === "*" && glob[i + 1] === "*" && glob[i + 2] === "/") {
@@ -84,6 +87,18 @@ const matchesSomePath = (glob: string): boolean => {
       continue
     }
     if (c === "*" && glob[i + 1] === "*") i += 1
+    if (c === "{" && before === undefined && glob.indexOf("}", i + 1) !== -1) {
+      before = ends
+      alternatives = new Set()
+      ends = new Set(before)
+      continue
+    }
+    if ((c === "," || c === "}") && before !== undefined) {
+      alternatives = new Set([...alternatives, ...ends])
+      ends = c === "," ? new Set(before) : alternatives
+      if (c === "}") before = undefined
+      continue
+    }
     const next = new Set<End>()
     for (const e of ends) {
       if (c === "\0") continue
@@ -97,9 +112,9 @@ const matchesSomePath = (glob: string): boolean => {
   return ends.has("name")
 }
 
-// The globs that ignore nothing, as written: no alternative matches a repo path.
+// The globs that ignore nothing, as written.
 export const deadGlobs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
-  [...new Set(globs)].filter((g) => !expandBraces(g).some(matchesSomePath))
+  [...new Set(globs)].filter((g) => !matchesSomePath(g))
 
 const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
 
