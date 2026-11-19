@@ -117,6 +117,24 @@ describe("identifiers", () => {
     expect(u.log.filter((l) => l.startsWith("::"))).toEqual([])
   })
 
+  // With the config read, a later failure keeps the warning; an invalid config has no globs to check.
+  it("o aviso do glob do ignore fica quando o cspell ou a busca na base falham", async () => {
+    const warned = (log: ReadonlyArray<string>) => log.filter((l) => l.startsWith("::warning title=Glob do ignore sem efeito"))
+    const config = JSON.stringify({ ignore: ["lib/"] })
+    const t = setup()
+    await t.run(t.env({ config, portuguese: () => Effect.fail(new CheckError({ message: "o cspell falhou: x" })) }))
+    expect(t.status).toEqual([{ state: "success", description: "não rodou: o cspell falhou: x (só aviso)" }])
+    expect(warned(t.log)).toHaveLength(1)
+    const u = setup()
+    await u.run(u.env({ config, inBase: () => Effect.fail(new CheckError({ message: "não consegui ler a base: x" })) }))
+    expect(u.status).toEqual([{ state: "success", description: "não rodou: não consegui ler a base: x (só aviso)" }])
+    expect(warned(u.log)).toHaveLength(1)
+    const v = setup()
+    await v.run(v.env({ config: `{"ignore": ["lib/"], "palavras": []}` }))
+    expect(v.status[0]?.description).toMatch(/^não rodou: \.github\/identifiers\.json inválido/)
+    expect(warned(v.log)).toEqual([])
+  })
+
   it("403 no status fora de um fork reprova o job, mesmo só avisando", async () => {
     const t = setup({ statusHttp: 403 })
     expect(await t.run(t.env())).toEqual({ ok: false })

@@ -43,9 +43,8 @@ export interface Environment {
   readonly appendSummary: (text: string) => void
 }
 
-export const result = (env: Environment): Effect.Effect<Result> =>
+const check = (env: Environment, config: Config, deadIgnore: ReadonlyArray<string>): Effect.Effect<Result, CheckError> =>
   Effect.gen(function* () {
-    const config = yield* decodeConfig(env.config)
     const allowed = new Set([...DEFAULT_WORDS, ...(config.words ?? [])].map(normalize))
     const found = occurrences(env.diff, config.ignore ?? [])
       .map((o) => ({ ...o, words: o.words.filter((w) => !allowed.has(normalize(w))) }))
@@ -64,9 +63,22 @@ export const result = (env: Environment): Effect.Effect<Result> =>
       findings: candidates.filter((f) => !legacy.has(f.identifier)),
       legacy: candidates.filter((f) => legacy.has(f.identifier)).length,
       error: undefined,
-      deadIgnore: deadGlobs(config.ignore ?? []),
+      deadIgnore,
     } satisfies Result
-  }).pipe(Effect.catch((e) => Effect.succeed({ block: env.block, findings: [], legacy: 0, error: e.message, deadIgnore: [] })))
+  })
+
+const failed = (env: Environment, e: CheckError, deadIgnore: ReadonlyArray<string>): Result =>
+  ({ block: env.block, findings: [], legacy: 0, error: e.message, deadIgnore })
+
+// Once the config is read, its dead globs are reported even if a later step fails.
+export const result = (env: Environment): Effect.Effect<Result> =>
+  decodeConfig(env.config).pipe(
+    Effect.flatMap((config) => {
+      const deadIgnore = deadGlobs(config.ignore ?? [])
+      return check(env, config, deadIgnore).pipe(Effect.catch((e) => Effect.succeed(failed(env, e, deadIgnore))))
+    }),
+    Effect.catch((e) => Effect.succeed(failed(env, e, []))),
+  )
 
 // Annotations, summary and the «identifiers» status on the PR head. A failed write is a warning: the
 // verdict stands. The exception is a 403 outside a fork: the caller is missing `statuses: write`.
