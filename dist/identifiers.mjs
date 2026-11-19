@@ -7930,7 +7930,7 @@ var while_ = /* @__PURE__ */ dual(2, (self, predicate) => fromStep(map5(toStep(s
       output,
       duration: duration2
     });
-    return flatMap3(isEffect(eff) ? eff : succeed3(eff), (check2) => check2 ? succeed3(result4) : done2(output));
+    return flatMap3(isEffect(eff) ? eff : succeed3(eff), (check3) => check3 ? succeed3(result4) : done2(output));
   });
 })));
 var windowed = (interval) => {
@@ -10997,9 +10997,9 @@ var makeBytes = (proto, algorithm, bytes2) => make14(proto, algorithm, {
   bytes: bytes2
 });
 var checkKeyLength = (algorithm) => (bytes2) => bytes2.length === algorithm.keyLength ? void 0 : `Expected a ${algorithm.keyLength}-byte key for ${algorithm.name}, not ${bytes2.length} bytes`;
-var fromBytes = (module, method, proto, algorithm, bytes2, check2) => suspend3(() => {
+var fromBytes = (module, method, proto, algorithm, bytes2, check3) => suspend3(() => {
   if (!(bytes2 instanceof Uint8Array)) return invalidKey(module, method, "Expected the key as a Uint8Array");
-  const problem = check2(bytes2);
+  const problem = check3(bytes2);
   return problem === void 0 ? succeed6(makeBytes(proto, algorithm, copyBytes2(bytes2))) : invalidKey(module, method, problem);
 });
 var checkAesLength = (name, keyLength) => (algorithm) => {
@@ -14199,14 +14199,14 @@ function toDefaultIssues(issue, path, leafHook, checkHook, messageOverride) {
       }];
   }
 }
-function formatCheck(check2) {
-  const expected = check2.annotations?.expected;
+function formatCheck(check3) {
+  const expected = check3.annotations?.expected;
   if (typeof expected === "string") return expected;
-  switch (check2._tag) {
+  switch (check3._tag) {
     case "Filter":
       return "<filter>";
     case "FilterGroup":
-      return check2.checks.map((check3) => formatCheck(check3)).join(" & ");
+      return check3.checks.map((check4) => formatCheck(check4)).join(" & ");
   }
 }
 function makeFormatterDefault() {
@@ -15219,7 +15219,7 @@ var Number5 = class extends ASTNodeImpl {
   }
 };
 function hasCheck(checks, id2) {
-  return checks.some((check2) => check2.annotations?.representation?.id === id2 || check2._tag === "FilterGroup" && hasCheck(check2.checks, id2));
+  return checks.some((check3) => check3.annotations?.representation?.id === id2 || check3._tag === "FilterGroup" && hasCheck(check3.checks, id2));
 }
 var number2 = /* @__PURE__ */ new Number5();
 var Boolean2 = class extends ASTNodeImpl {
@@ -16566,13 +16566,13 @@ function isOptional(ast) {
 function isMutable(ast) {
   return ast.context?.isMutable ?? false;
 }
-function isStructuralCheck(check2) {
-  return check2.annotations?.[STRUCTURAL_ANNOTATION_KEY] === true || check2._tag === "FilterGroup" && check2.checks.every(isStructuralCheck);
+function isStructuralCheck(check3) {
+  return check3.annotations?.[STRUCTURAL_ANNOTATION_KEY] === true || check3._tag === "FilterGroup" && check3.checks.every(isStructuralCheck);
 }
 function extractStructuralChecks(checks) {
-  function extract(check2) {
-    if (isStructuralCheck(check2)) return [check2];
-    return check2._tag === "FilterGroup" ? check2.checks.flatMap(extract) : [];
+  function extract(check3) {
+    if (isStructuralCheck(check3)) return [check3];
+    return check3._tag === "FilterGroup" ? check3.checks.flatMap(extract) : [];
   }
   const out = checks.flatMap(extract);
   return isArrayNonEmpty2(out) ? out : void 0;
@@ -16793,19 +16793,19 @@ function isStringSymbol(annotations2) {
 }
 function collectIssues(checks, value3, issues, ast, options3) {
   for (let i = 0; i < checks.length; i++) {
-    const check2 = checks[i];
-    if (check2._tag === "FilterGroup") {
-      issues = collectIssues(check2.checks, value3, issues, ast, options3);
+    const check3 = checks[i];
+    if (check3._tag === "FilterGroup") {
+      issues = collectIssues(check3.checks, value3, issues, ast, options3);
       if (issues && (options3.errors !== "all" || issues[issues.length - 1].filter.aborted)) {
         return issues;
       }
     } else {
-      const issue = check2.run(value3, ast, options3);
+      const issue = check3.run(value3, ast, options3);
       if (issue) {
-        const filter9 = new Filter(check2, issue, value3, options3);
+        const filter9 = new Filter(check3, issue, value3, options3);
         if (issues) issues.push(filter9);
         else issues = [filter9];
-        if (options3.errors !== "all" || check2.aborted) {
+        if (options3.errors !== "all" || check3.aborted) {
           return issues;
         }
       }
@@ -18480,11 +18480,11 @@ function compileJsonSchema(representations, rootPaths, references, options3) {
     const annotations2 = representation.checks.length === 0 ? representation.annotations : representation.checks[representation.checks.length - 1].annotations;
     return typeof annotations2?.identifier !== "string" && typeof annotations2?.[IDENTIFIER_FALLBACK_KEY] === "string" ? annotations2[IDENTIFIER_FALLBACK_KEY] : void 0;
   }
-  function compileCheck(check2, type, path, dependencies) {
-    const annotations2 = check2.annotations;
+  function compileCheck(check3, type, path, dependencies) {
+    const annotations2 = check3.annotations;
     const callback3 = annotations2?.toJsonSchema;
     if (callback3 !== void 0) {
-      const schemas3 = check2.representation?.schemas?.map((schema3, index2) => recur2(schema3, [...path, "representation", "schemas", index2], dependencies)) ?? [];
+      const schemas3 = check3.representation?.schemas?.map((schema3, index2) => recur2(schema3, [...path, "representation", "schemas", index2], dependencies)) ?? [];
       const result4 = callback3({
         type,
         schemas: schemas3
@@ -18500,13 +18500,13 @@ function compileJsonSchema(representations, rootPaths, references, options3) {
         ...ordinary2
       };
       const allowed = ordinary2 === void 0 ? inlineableCheckKeywords : inlineableAnnotatedCheckKeywords;
-      return [schema2, check2._tag === "Filter" && hasOnlyKeywords(schema2, allowed) && (ordinary2 === void 0 || hasOnlyKeywords(ordinary2, promotableAnnotationKeywords)) ? true : void 0];
+      return [schema2, check3._tag === "Filter" && hasOnlyKeywords(schema2, allowed) && (ordinary2 === void 0 || hasOnlyKeywords(ordinary2, promotableAnnotationKeywords)) ? true : void 0];
     }
-    if (check2._tag === "Filter") {
+    if (check3._tag === "Filter") {
       dependencies.push(false);
       return void 0;
     }
-    const schemas2 = check2.checks.flatMap((child, index2) => {
+    const schemas2 = check3.checks.flatMap((child, index2) => {
       const result4 = compileCheck(child, type, [...path, "checks", index2], dependencies);
       return result4 === void 0 ? [] : [result4[0]];
     });
@@ -18548,8 +18548,8 @@ function compileJsonSchema(representations, rootPaths, references, options3) {
     }
     for (let index2 = 0; index2 < representation.checks.length; index2++) {
       const type = typeof output.type === "string" && isJsonSchemaType(output.type) ? output.type : void 0;
-      const check2 = compileCheck(representation.checks[index2], type, [...path, "checks", index2], local);
-      if (check2 !== void 0) output = appendJsonSchema(output, ...check2);
+      const check3 = compileCheck(representation.checks[index2], type, [...path, "checks", index2], local);
+      if (check3 !== void 0) output = appendJsonSchema(output, ...check3);
     }
     compiledRepresentations.set(representation, {
       schema: output,
@@ -19083,9 +19083,9 @@ function toRepresentations(asts, options3) {
     candidate.visiting = false;
   }
   function visitChecks(checks) {
-    checks?.forEach((check2) => {
-      check2.annotations?.representation?.schemas?.forEach((schema) => visit(toType(schema)));
-      if (check2._tag === "FilterGroup") visitChecks(check2.checks);
+    checks?.forEach((check3) => {
+      check3.annotations?.representation?.schemas?.forEach((schema) => visit(toType(schema)));
+      if (check3._tag === "FilterGroup") visitChecks(check3.checks);
     });
   }
   function recur2(input) {
@@ -19210,16 +19210,16 @@ function toRepresentations(asts, options3) {
         };
     }
   }
-  function fromCheck(check2) {
+  function fromCheck(check3) {
     return {
-      ...check2._tag === "Filter" ? {
-        _tag: check2._tag,
-        aborted: check2.aborted
+      ...check3._tag === "Filter" ? {
+        _tag: check3._tag,
+        aborted: check3.aborted
       } : {
-        _tag: check2._tag,
-        checks: map4(check2.checks, fromCheck)
+        _tag: check3._tag,
+        checks: map4(check3.checks, fromCheck)
       },
-      ...fromAnnotations(check2.annotations, true)
+      ...fromAnnotations(check3.annotations, true)
     };
   }
   function fromAnnotations(annotations2, projectSchemas = false) {
@@ -21100,9 +21100,9 @@ var makeRecord = (type, fields) => {
   const input = typeof fields === "object" && fields !== null ? fields : {};
   const self = Object.create(RecordPrototype);
   self._tag = type;
-  for (const [key5, check2] of Object.entries(recordFields[type])) {
+  for (const [key5, check3] of Object.entries(recordFields[type])) {
     const value3 = input[key5];
-    if (!check2(value3)) {
+    if (!check3(value3)) {
       return fail2(new NetAddressError({
         input: fields,
         message: `invalid ${type} record ${key5}`
@@ -27377,7 +27377,7 @@ var classifyCircuitBreakerExit = (exit3, nowMillis) => {
       _tag: outcome
     };
   }
-  let failed = false;
+  let failed2 = false;
   let succeeded = false;
   let retryAfter;
   for (const reason of exit3.cause.reasons) {
@@ -27386,7 +27386,7 @@ var classifyCircuitBreakerExit = (exit3, nowMillis) => {
     }
     const outcome = circuitBreakerErrorOutcome(reason.error);
     if (outcome === "Failure") {
-      failed = true;
+      failed2 = true;
       const hint = retryAfterOf(reason.error, nowMillis);
       if (hint !== void 0) {
         retryAfter = retryAfter === void 0 ? hint : max2(retryAfter, hint);
@@ -27395,7 +27395,7 @@ var classifyCircuitBreakerExit = (exit3, nowMillis) => {
       succeeded = true;
     }
   }
-  return failed ? circuitBreakerFailure(retryAfter) : {
+  return failed2 ? circuitBreakerFailure(retryAfter) : {
     _tag: succeeded ? "Success" : "Ignored"
   };
 };
@@ -28325,8 +28325,7 @@ var decodeConfig2 = (raw2) => {
     Effect_exports.mapError((e) => e instanceof CheckError ? e : new CheckError({ message: `${CONFIG_PATH} inv\xE1lido: ${e.message}` }))
   );
 };
-var result3 = (env2) => Effect_exports.gen(function* () {
-  const config = yield* decodeConfig2(env2.config);
+var check2 = (env2, config, deadIgnore) => Effect_exports.gen(function* () {
   const allowed = new Set([...DEFAULT_WORDS, ...config.words ?? []].map(normalize3));
   const found = occurrences(env2.diff, config.ignore ?? []).map((o) => ({ ...o, words: o.words.filter((w) => !allowed.has(normalize3(w))) })).filter((o) => o.words.length > 0);
   const pt = yield* env2.portuguese([...new Set(found.flatMap((o) => o.words))]);
@@ -28340,9 +28339,17 @@ var result3 = (env2) => Effect_exports.gen(function* () {
     findings: candidates.filter((f) => !legacy.has(f.identifier)),
     legacy: candidates.filter((f) => legacy.has(f.identifier)).length,
     error: void 0,
-    deadIgnore: deadGlobs(config.ignore ?? [])
+    deadIgnore
   };
-}).pipe(Effect_exports.catch((e) => Effect_exports.succeed({ block: env2.block, findings: [], legacy: 0, error: e.message, deadIgnore: [] })));
+});
+var failed = (env2, e, deadIgnore) => ({ block: env2.block, findings: [], legacy: 0, error: e.message, deadIgnore });
+var result3 = (env2) => decodeConfig2(env2.config).pipe(
+  Effect_exports.flatMap((config) => {
+    const deadIgnore = deadGlobs(config.ignore ?? []);
+    return check2(env2, config, deadIgnore).pipe(Effect_exports.catch((e) => Effect_exports.succeed(failed(env2, e, deadIgnore))));
+  }),
+  Effect_exports.catch((e) => Effect_exports.succeed(failed(env2, e, [])))
+);
 var program = (env2) => Effect_exports.gen(function* () {
   const gh = yield* GitHub;
   const r = yield* result3(env2);
