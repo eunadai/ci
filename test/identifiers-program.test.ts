@@ -100,6 +100,23 @@ describe("identifiers", () => {
     expect(u.status).toEqual([{ state: "success", description: "não rodou: o cspell falhou: x (só aviso)" }])
   })
 
+  // A glob in `ignore` that never matches is pointed out, without changing the verdict, even with block.
+  it("avisa do glob do ignore que nunca casa, sem mudar o veredito", async () => {
+    const summaries: Array<string> = []
+    const t = setup()
+    const env = t.env({ block: true, diff: diff(["const shipping = 1"]), appendSummary: (s) => void summaries.push(s) })
+    expect(await t.run({ ...env, config: JSON.stringify({ ignore: ["lib/", "legacy/**"] }) })).toEqual({ ok: true })
+    expect(t.status).toEqual([{ state: "success", description: "nenhum identificador novo em português" }])
+    expect(t.log.filter((l) => l.startsWith("::"))).toEqual([
+      "::warning title=Glob do ignore sem efeito::O glob \"lib/\" do `ignore` do `.github/identifiers.json` nunca casa com um caminho, então não ignora nada. Um glob casa com o caminho inteiro a partir da raiz, sem `/` no começo ou no fim e sem pasta vazia, `.` ou `..`. Para uma pasta, use `pasta/**`.",
+    ])
+    expect(summaries.join("")).toContain("⚠️ O `ignore` do `.github/identifiers.json` tem globs que nunca casam com um caminho e não ignoram nada: `\"lib/\"`.")
+    const u = setup()
+    await u.run(u.env({ block: true, diff: diff(["const shipping = 1"]), config: JSON.stringify({ ignore: ["legacy/**"] }) }))
+    expect(u.status).toEqual(t.status)
+    expect(u.log.filter((l) => l.startsWith("::"))).toEqual([])
+  })
+
   it("403 no status fora de um fork reprova o job, mesmo só avisando", async () => {
     const t = setup({ statusHttp: 403 })
     expect(await t.run(t.env())).toEqual({ ok: false })

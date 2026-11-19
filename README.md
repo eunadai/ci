@@ -292,7 +292,7 @@ Opcional, e lido do **branch base** do PR: um PR não consegue liberar as própr
 | Campo | O que faz |
 |---|---|
 | `words` | Palavras que passam, além dos termos do domínio acima (sem diferença de caixa ou acento). |
-| `ignore` | Globs que não são conferidos, somados ao padrão. Também ficam fora da busca de legado na base. |
+| `ignore` | Globs que não são conferidos, somados ao padrão. Também ficam fora da busca de legado na base. Um glob que nunca casa com um caminho (absoluto, com pasta vazia como em `lib/`, com `.` ou `..`) dá um aviso, sem mudar o resultado. |
 
 O cspell (10.4.0) e o dicionário pt-BR são fixos pelo `dist/identifiers/package-lock.json`, com hash de integridade, e sobem por PR aqui. Um run de PR leva poucos segundos depois da instalação.
 

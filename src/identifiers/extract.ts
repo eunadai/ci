@@ -69,15 +69,62 @@ export const expandBraces = (glob: string): ReadonlyArray<string> => {
   return out
 }
 
+// Whether the check's glob can match a repo path: one that is relative and has no empty, `.` or `..`
+// folder and no NUL. The walk reads the glob as `globParaRegex` does, braces included. `*`, `?` and `**`
+// can stand for one plain character, which never hurts; the `**/` of `src**/` may match nothing, so it
+// is either nothing or a plain folder. `ends` holds what the path so far can end in; inside braces,
+// `before` is where each alternative starts and `alternatives` where the ones read so far end.
+type End = "start" | "slash" | "dot" | "dots" | "name"
+const matchesSomePath = (glob: string): boolean => {
+  let ends = new Set<End>(["start"])
+  let before: Set<End> | undefined
+  let alternatives = new Set<End>()
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]!
+    if (c === "*" && glob[i + 1] === "*" && glob[i + 2] === "/") {
+      if (ends.size > 0) ends.add("slash")
+      i += 2
+      continue
+    }
+    if (c === "*" && glob[i + 1] === "*") i += 1
+    if (c === "{" && before === undefined && glob.indexOf("}", i + 1) !== -1) {
+      before = ends
+      alternatives = new Set()
+      ends = new Set(before)
+      continue
+    }
+    if ((c === "," || c === "}") && before !== undefined) {
+      alternatives = new Set([...alternatives, ...ends])
+      ends = c === "," ? new Set(before) : alternatives
+      if (c === "}") before = undefined
+      continue
+    }
+    const next = new Set<End>()
+    for (const e of ends) {
+      if (c === "\0") continue
+      if (c === "/") {
+        if (e === "name") next.add("slash")
+      } else if (c === ".") next.add(e === "start" || e === "slash" ? "dot" : e === "dot" ? "dots" : "name")
+      else next.add("name")
+    }
+    ends = next
+  }
+  return ends.has("name")
+}
+
+// The globs that ignore nothing, as written.
+export const deadGlobs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
+  [...new Set(globs)].filter((g) => !matchesSomePath(g))
+
 const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
 
 // The globs as `git grep` exclude pathspecs. With `glob` magic, `*` and `?` stay inside one folder and
 // `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
 // there, so they are escaped. A glob with no `*` or `?` names one file, but git would also take it as a
 // folder and exclude what is inside, so its last character is escaped (`lib` → `li\b`): git matches a
-// pathspec with an escape against the whole path only. A glob no repo path can match (absolute, with
-// an empty, `.` or `..` folder, or with a NUL) is left out: git would reject some, would read `a//b`
-// as `a/b`, and a NUL can't go in a process argument.
+// pathspec with an escape against the whole path only. A glob that is absolute, has an empty, `.` or
+// `..` folder, or has a NUL is left out: git would reject some, would read `a//b` as `a/b`, and a NUL
+// can't go in a process argument.
 // Excluding is only a shortcut: the hits are still filtered by `legacyIgnore`, and where git excludes
 // more, fewer names are legacy, never more.
 export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
