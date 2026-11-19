@@ -28137,7 +28137,7 @@ var expandBraces = (glob) => {
   return out;
 };
 var escapeGlob = (s) => s.replace(/[[\]\\]/g, "\\$&");
-var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !g.split("/").some((s) => s === "" || s === "." || s === "..")).map((g) => {
+var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === "..")).map((g) => {
   if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`;
   const chars = [...g];
   return `:(exclude,glob)${escapeGlob(chars.slice(0, -1).join(""))}\\${chars.at(-1)}`;

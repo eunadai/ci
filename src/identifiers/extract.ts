@@ -75,13 +75,14 @@ const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
 // `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
 // there, so they are escaped. A glob with no `*` or `?` names one file, but git would also take it as a
 // folder and exclude what is inside, so its last character is escaped (`lib` → `li\b`): git matches a
-// pathspec with an escape against the whole path only. A glob no repo path can match (absolute, or with
-// an empty, `.` or `..` folder) is left out: git would reject some, and would read `a//b` as `a/b`.
+// pathspec with an escape against the whole path only. A glob no repo path can match (absolute, with
+// an empty, `.` or `..` folder, or with a NUL) is left out: git would reject some, would read `a//b`
+// as `a/b`, and a NUL can't go in a process argument.
 // Excluding is only a shortcut: the hits are still filtered by `legacyIgnore`, and where git excludes
 // more, fewer names are legacy, never more.
 export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...new Set(globs.flatMap(expandBraces))]
-    .filter((g) => !g.split("/").some((s) => s === "" || s === "." || s === ".."))
+    .filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === ".."))
     .map((g) => {
       if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`
       const chars = [...g]
