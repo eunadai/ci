@@ -28145,10 +28145,31 @@ var expandBraces = (glob) => {
   }
   return out;
 };
-var matchesNoPath = (glob) => glob.includes("\0") || glob.split("/").some((s) => s === "" || s === "." || s === "..");
-var deadGlobs = (globs) => [...new Set(globs)].filter((g) => expandBraces(g).every(matchesNoPath));
+var matchesSomePath = (glob) => {
+  let ends = /* @__PURE__ */ new Set(["start"]);
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*" && glob[i + 1] === "*" && glob[i + 2] === "/") {
+      if (ends.size > 0) ends.add("slash");
+      i += 2;
+      continue;
+    }
+    if (c === "*" && glob[i + 1] === "*") i += 1;
+    const next2 = /* @__PURE__ */ new Set();
+    for (const e of ends) {
+      if (c === "\0") continue;
+      if (c === "/") {
+        if (e === "name") next2.add("slash");
+      } else if (c === ".") next2.add(e === "start" || e === "slash" ? "dot" : e === "dot" ? "dots" : "name");
+      else next2.add("name");
+    }
+    ends = next2;
+  }
+  return ends.has("name");
+};
+var deadGlobs = (globs) => [...new Set(globs)].filter((g) => !expandBraces(g).some(matchesSomePath));
 var escapeGlob = (s) => s.replace(/[[\]\\]/g, "\\$&");
-var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !matchesNoPath(g)).map((g) => {
+var excludePathspecs = (globs) => [...new Set(globs.flatMap(expandBraces))].filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === "..")).map((g) => {
   if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`;
   const chars = [...g];
   return `:(exclude,glob)${escapeGlob(chars.slice(0, -1).join(""))}\\${chars.at(-1)}`;

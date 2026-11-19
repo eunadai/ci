@@ -69,14 +69,37 @@ export const expandBraces = (glob: string): ReadonlyArray<string> => {
   return out
 }
 
-// A glob (with no braces) that no repo path matches: a path is relative, has no empty, `.` or `..`
-// folder, and no NUL.
-const matchesNoPath = (glob: string): boolean =>
-  glob.includes("\0") || glob.split("/").some((s) => s === "" || s === "." || s === "..")
+// Whether the check's glob (`globParaRegex`, with no braces) can match a repo path: one that is
+// relative and has no empty, `.` or `..` folder and no NUL. `*`, `?` and `**` can stand for one plain
+// character, which never hurts; the `**/` of `src**/` may match nothing, so it is either nothing or a
+// plain folder. `ends` holds what the path so far can end in.
+type End = "start" | "slash" | "dot" | "dots" | "name"
+const matchesSomePath = (glob: string): boolean => {
+  let ends = new Set<End>(["start"])
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]!
+    if (c === "*" && glob[i + 1] === "*" && glob[i + 2] === "/") {
+      if (ends.size > 0) ends.add("slash")
+      i += 2
+      continue
+    }
+    if (c === "*" && glob[i + 1] === "*") i += 1
+    const next = new Set<End>()
+    for (const e of ends) {
+      if (c === "\0") continue
+      if (c === "/") {
+        if (e === "name") next.add("slash")
+      } else if (c === ".") next.add(e === "start" || e === "slash" ? "dot" : e === "dot" ? "dots" : "name")
+      else next.add("name")
+    }
+    ends = next
+  }
+  return ends.has("name")
+}
 
-// The globs that ignore nothing, as written: every alternative matches no repo path.
+// The globs that ignore nothing, as written: no alternative matches a repo path.
 export const deadGlobs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
-  [...new Set(globs)].filter((g) => expandBraces(g).every(matchesNoPath))
+  [...new Set(globs)].filter((g) => !expandBraces(g).some(matchesSomePath))
 
 const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
 
@@ -84,14 +107,14 @@ const escapeGlob = (s: string): string => s.replace(/[[\]\\]/g, "\\$&")
 // `**/`, `/**/` and a trailing `/**` cross folders, as in `globParaRegex`; `[`, `]` and `\` are literal
 // there, so they are escaped. A glob with no `*` or `?` names one file, but git would also take it as a
 // folder and exclude what is inside, so its last character is escaped (`lib` → `li\b`): git matches a
-// pathspec with an escape against the whole path only. A glob no repo path can match (`matchesNoPath`)
-// is left out: git would reject some, would read `a//b` as `a/b`, and a NUL can't go in a process
-// argument.
+// pathspec with an escape against the whole path only. A glob that is absolute, has an empty, `.` or
+// `..` folder, or has a NUL is left out: git would reject some, would read `a//b` as `a/b`, and a NUL
+// can't go in a process argument.
 // Excluding is only a shortcut: the hits are still filtered by `legacyIgnore`, and where git excludes
 // more, fewer names are legacy, never more.
 export const excludePathspecs = (globs: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...new Set(globs.flatMap(expandBraces))]
-    .filter((g) => !matchesNoPath(g))
+    .filter((g) => !g.includes("\0") && !g.split("/").some((s) => s === "" || s === "." || s === ".."))
     .map((g) => {
       if (/[*?]/.test(g)) return `:(exclude,glob)${escapeGlob(g)}`
       const chars = [...g]

@@ -122,12 +122,12 @@ describe("excludePathspecs", () => {
     expect(excludePathspecs(["a\u0000*", "a\u0000b", "legacy/**"])).toEqual([":(exclude,glob)legacy/**"])
   })
 
-  // Pure rule: a glob whose every alternative is absolute, has an empty, `.` or `..` folder, or a NUL
-  // ignores nothing, for the check's glob too; each is listed once, in order.
+  // Pure rule: a glob that only matches absolute paths, or ones with an empty, `.` or `..` folder or a
+  // NUL, ignores nothing; the `**/` of `src**/` may match nothing, so that one still matches `src`.
   it("aponta os globs do ignore que nunca casam com um caminho", () => {
     const dead = deadGlobs(["lib/", "/abs/*", "a//b", "./x", "a/../b", "**/", "a\u0000*", "{lib/,src/}", "", "lib/"])
     expect(dead).toEqual(["lib/", "/abs/*", "a//b", "./x", "a/../b", "**/", "a\u0000*", "{lib/,src/}", ""])
-    expect(deadGlobs(["legacy/**", "src", ".github/**", "{lib/,src/**}", "a/.b/*"])).toEqual([])
+    expect(deadGlobs(["legacy/**", "src", ".github/**", "{lib/,src/**}", "a/.b/*", "src**/", "a**//b", ".*/x"])).toEqual([])
     const paths = ["lib", "lib/a.ts", "abs/a", "a/b", "x", "a/b/c", "src", "src/a.ts", "a"]
     expect(paths.filter(casaAlgum(dead))).toEqual([])
   })
