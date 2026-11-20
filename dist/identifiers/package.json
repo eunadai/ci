@@ -3,6 +3,6 @@
   "description": "cspell and its dictionaries for .github/workflows/identifiers.yml, installed with npm ci from the lockfile.",
   "dependencies": {
     "@cspell/dict-pt-br": "2.4.4",
-    "cspell": "10.4.1"
+    "cspell": "10.5.0"
   }
 }
