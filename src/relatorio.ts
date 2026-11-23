@@ -1,8 +1,12 @@
 import type { Resultado } from "./avaliar.js"
-import { type Config, LABEL_APROVADO_PADRAO } from "./config.js"
+import { type Config, CONTAR_PADRAO, LABEL_APROVADO_PADRAO } from "./config.js"
 import { MARCADOR } from "./github.js"
 
 const labelDe = (config: Config | undefined) => config?.tamanho?.labelAprovado ?? LABEL_APROVADO_PADRAO
+const contagemDe = (config: Config | undefined) =>
+  (config?.tamanho?.contar ?? CONTAR_PADRAO) === "adicionadas"
+    ? "Contagem: só linhas adicionadas."
+    : "Contagem: linhas adicionadas e removidas."
 const ehMotivoDeTamanho = (m: string) => /linhas de lógica, acima do limite/.test(m)
 
 const titulo = (r: Resultado, config: Config | undefined): string => {
@@ -33,6 +37,7 @@ export const comentario = (r: Resultado, config: Config | undefined, runUrl: str
     if (doTamanho) {
       const maiores = [...r.contados].sort((a, b) => b.linhas - a.linhas).slice(0, 5)
       linhas.push(`Maiores: ${maiores.map((c) => `\`${c.arquivo}\` ${c.linhas}`).join(" · ")}`)
+      linhas.push(contagemDe(config))
     }
     for (const m of r.motivos.filter((m) => !ehMotivoDeTamanho(m))) linhas.push(`- ${m}`)
     if (doTamanho) {
@@ -67,7 +72,7 @@ export const descricaoStatus = (r: Resultado): string => {
 export const summary = (r: Resultado, config: Config | undefined): string => {
   const linhas = [titulo(r, config), ...r.motivos.map((m) => `- ${m}`)]
   if (r.total !== undefined) {
-    linhas.push("", `Linhas de lógica: ${r.total} (limite ${r.limite}).`)
+    linhas.push("", `Linhas de lógica: ${r.total} (limite ${r.limite}).`, contagemDe(config))
     for (const c of r.contados) linhas.push(`- ${c.arquivo}: ${c.linhas}`)
   }
   return linhas.join("\n")

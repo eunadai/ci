@@ -48,3 +48,22 @@ it.effect("aprovadores com tipo errado ou login vazio falha", () =>
       expect(erro._tag).toBe("ConfigInvalida")
     }
   }))
+
+it.effect("contar aceita os dois valores e fica ausente quando não vem", () =>
+  Effect.gen(function* () {
+    for (const contar of ["adicionadas", "adicionadas-e-removidas"] as const) {
+      const config = yield* decodeConfig({ tamanho: { limite: 400, contar } })
+      expect(config.tamanho?.contar).toBe(contar)
+    }
+    const semChave = yield* decodeConfig({ tamanho: { limite: 400 } })
+    expect(semChave.tamanho?.contar).toBeUndefined()
+  }))
+
+it.effect("contar com valor desconhecido falha citando o campo", () =>
+  Effect.gen(function* () {
+    for (const contar of ["removidas", "Adicionadas", 1]) {
+      const erro = yield* Effect.flip(decodeConfig({ tamanho: { limite: 400, contar } }))
+      expect(erro._tag).toBe("ConfigInvalida")
+      expect(erro.mensagem).toContain("contar")
+    }
+  }))

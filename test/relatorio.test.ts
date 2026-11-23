@@ -23,8 +23,25 @@ describe("comentario", () => {
     expect(l[0]).toBe(MARCADOR)
     expect(l[1]).toBe("❌ **Portão:** 812 linhas de lógica (limite 400).")
     expect(l[2]).toBe("Maiores: `b.ts` 632 · `c.ts` 120 · `d.ts` 20 · `e.ts` 15 · `f.ts` 15")
+    expect(l[3]).toBe("Contagem: linhas adicionadas e removidas.")
     expect(l).toContain("**Como resolver:** divida o PR, ou peça ao dono do repo a label «aprovado-nadai».")
     expect(l.at(-1)).toBe(`[Ver o run](${RUN})`)
+  })
+
+  it("reprovado por tamanho com contar: «adicionadas» diz que só conta adicionadas", () => {
+    const config: Config = { tamanho: { limite: 400, contar: "adicionadas" } }
+    const r: Resultado = {
+      ...base, ok: false, total: 900, limite: 400,
+      motivos: ["O PR soma 900 linhas de lógica, acima do limite de 400."],
+      contados: [1, 2, 3, 4, 5, 6].map((n) => ({ arquivo: `${n}.ts`, linhas: n * 100 - 50 })),
+    }
+    const l = linhas(comentario(r, config, RUN))
+    expect(l[2]).toBe("Maiores: `6.ts` 550 · `5.ts` 450 · `4.ts` 350 · `3.ts` 250 · `2.ts` 150")
+    expect(l[3]).toBe("Contagem: só linhas adicionadas.")
+  })
+
+  it("passando, o comentário não fala da contagem", () => {
+    expect(comentario({ ...base, total: 212, limite: 400 }, CONFIG, RUN)).not.toContain("Contagem:")
   })
 
   it("reprovado por tamanho com label de terceiro lista o motivo extra", () => {
@@ -91,5 +108,14 @@ describe("summary", () => {
     expect(s).toContain("- a.ts: 1")
     expect(s).toContain("- b.ts: 2")
     expect(s).not.toContain(MARCADOR)
+  })
+
+  it("diz o que a contagem soma", () => {
+    const r: Resultado = { ...base, total: 3, limite: 400, contados: [{ arquivo: "a.ts", linhas: 3 }] }
+    expect(linhas(summary(r, CONFIG))).toEqual([
+      "✅ **Portão ok** (3/400 linhas).", "", "Linhas de lógica: 3 (limite 400).", "Contagem: linhas adicionadas e removidas.", "- a.ts: 3",
+    ])
+    const config: Config = { tamanho: { limite: 400, contar: "adicionadas" } }
+    expect(linhas(summary(r, config))).toContain("Contagem: só linhas adicionadas.")
   })
 })

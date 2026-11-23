@@ -10,6 +10,8 @@ export const Config = Schema.Struct({
       // GitHub logins allowed to release the limit with the label. Absent: only the repo owner.
       // Needed when the repo belongs to an organization, whose login is never a label's actor.
       aprovadores: Schema.optionalKey(Schema.Array(Schema.NonEmptyString).check(Schema.isNonEmpty())),
+      // Which lines count toward the limit. Absent: added and deleted lines (CONTAR_PADRAO).
+      contar: Schema.optionalKey(Schema.Literals(["adicionadas", "adicionadas-e-removidas"])),
     }),
   ),
   soDocs: Schema.optionalKey(Schema.Array(Schema.String)),
@@ -25,6 +27,9 @@ export const decodeConfig = (u: unknown): Effect.Effect<Config, ConfigInvalida> 
   )
 
 export const LABEL_APROVADO_PADRAO = "aprovado-nadai"
+
+export type Contar = NonNullable<NonNullable<Config["tamanho"]>["contar"]>
+export const CONTAR_PADRAO: Contar = "adicionadas-e-removidas"
 
 // Files that never count as logic. Data files are JSON, except the manifests below, which count.
 export const IGNORAR_PADRAO: ReadonlyArray<string> = [

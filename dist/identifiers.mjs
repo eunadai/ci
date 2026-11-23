@@ -27840,7 +27840,9 @@ var Config = Schema_exports.Struct({
       labelAprovado: Schema_exports.optionalKey(Schema_exports.String),
       // GitHub logins allowed to release the limit with the label. Absent: only the repo owner.
       // Needed when the repo belongs to an organization, whose login is never a label's actor.
-      aprovadores: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.NonEmptyString).check(Schema_exports.isNonEmpty()))
+      aprovadores: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.NonEmptyString).check(Schema_exports.isNonEmpty())),
+      // Which lines count toward the limit. Absent: added and deleted lines (CONTAR_PADRAO).
+      contar: Schema_exports.optionalKey(Schema_exports.Literals(["adicionadas", "adicionadas-e-removidas"]))
     })
   ),
   soDocs: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),

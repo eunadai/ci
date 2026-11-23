@@ -1,4 +1,4 @@
-import { ARQUIVOS_SENSIVEIS, type Config, IGNORAR_PADRAO, LABEL_APROVADO_PADRAO, SEMPRE_CONTA } from "./config.js"
+import { ARQUIVOS_SENSIVEIS, type Config, CONTAR_PADRAO, IGNORAR_PADRAO, LABEL_APROVADO_PADRAO, SEMPRE_CONTA } from "./config.js"
 import { casaAlgum } from "./glob.js"
 
 // The most files the "list pull request files" endpoint returns (github.ts stops there).
@@ -90,9 +90,10 @@ export const avaliar = (e: Entrada): Resultado => {
 
   const conta = casaAlgum(SEMPRE_CONTA)
   const ignora = casaAlgum([...IGNORAR_PADRAO, ...(tamanho.ignorar ?? [])])
+  const soAdicionadas = (tamanho.contar ?? CONTAR_PADRAO) === "adicionadas"
   const contados = e.arquivos
     .filter((a) => conta(a.filename) || !ignora(a.filename))
-    .map((a) => ({ arquivo: a.filename, linhas: a.additions + a.deletions }))
+    .map((a) => ({ arquivo: a.filename, linhas: soAdicionadas ? a.additions : a.additions + a.deletions }))
   const total = contados.reduce((soma, c) => soma + c.linhas, 0)
   const label = tamanho.labelAprovado ?? LABEL_APROVADO_PADRAO
   const temLabel = e.labels.includes(label)

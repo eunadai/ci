@@ -141,6 +141,74 @@ describe("avaliar", () => {
     expect(r.tipo).toBe("semRegras")
   })
 
+  describe("com contar: «adicionadas»", () => {
+    const config: Config = { ...CONFIG, tamanho: { limite: 400, labelAprovado: "aprovado-nadai", contar: "adicionadas" } }
+
+    it("PR que só remove 1000 linhas passa", () => {
+      const r = avaliar(entrada({ config, arquivos: [arquivo("src/a.ts", 0, 1000)] }))
+      expect(r.ok).toBe(true)
+      expect(r.total).toBe(0)
+      expect(r.contados).toEqual([{ arquivo: "src/a.ts", linhas: 0 }])
+    })
+
+    it("passa com 400 adicionadas, e as remoções não somam", () => {
+      const r = avaliar(entrada({ config, arquivos: [arquivo("src/a.ts", 400, 300)] }))
+      expect(r.ok).toBe(true)
+      expect(r.total).toBe(400)
+    })
+
+    it("reprova com 401 adicionadas", () => {
+      const r = avaliar(entrada({ config, arquivos: [arquivo("src/a.ts", 401, 50)] }))
+      expect(r.ok).toBe(false)
+      expect(r.motivos[0]).toMatch(/401 linhas de lógica, acima do limite de 400/)
+      expect(r.contados).toEqual([{ arquivo: "src/a.ts", linhas: 401 }])
+    })
+
+    it("testes e lockfiles seguem sem contar", () => {
+      const r = avaliar(entrada({ config, arquivos: [arquivo("src/a.test.ts", 900), arquivo("package-lock.json", 5000)] }))
+      expect(r.ok).toBe(true)
+      expect(r.total).toBe(0)
+    })
+
+    it("a label do dono segue liberando", () => {
+      const r = avaliar(entrada({
+        config, labels: ["aprovado-nadai"], labelAplicadaPorAprovador: true, arquivos: [arquivo("src/a.ts", 900)],
+      }))
+      expect(r.ok).toBe(true)
+      expect(r.aprovado).toBe(true)
+    })
+
+    it("o ignorar do repo tira um arquivo de código numa pasta oculta", () => {
+      const c: Config = { ...CONFIG, tamanho: { limite: 400, ignorar: ["prototipo/**"], contar: "adicionadas" } }
+      const r = avaliar(entrada({ config: c, arquivos: [arquivo("prototipo/.canvas/a.ts", 900), arquivo("src/a.ts", 3)] }))
+      expect(r.ok).toBe(true)
+      expect(r.contados.map((x) => x.arquivo)).toEqual(["src/a.ts"])
+    })
+  })
+
+  it("sem contar, a remoção soma como hoje: 1000 linhas removidas reprova", () => {
+    const r = avaliar(entrada({ arquivos: [arquivo("src/a.ts", 0, 1000)] }))
+    expect(r.ok).toBe(false)
+    expect(r.total).toBe(1000)
+  })
+
+  it("contar: «adicionadas-e-removidas» é o mesmo que sem a chave", () => {
+    const config: Config = { ...CONFIG, tamanho: { limite: 400, contar: "adicionadas-e-removidas" } }
+    const r = avaliar(entrada({ config, arquivos: [arquivo("src/a.ts", 300, 101)] }))
+    expect(r.ok).toBe(false)
+    expect(r.total).toBe(401)
+  })
+
+  it("o ignorar do repo tira um arquivo de código numa pasta oculta", () => {
+    const config: Config = { ...CONFIG, tamanho: { limite: 400, ignorar: ["prototipo/**"] } }
+    const r = avaliar(entrada({ config, arquivos: [arquivo("prototipo/.canvas/a.ts", 900), arquivo("src/a.ts", 3)] }))
+    expect(r.ok).toBe(true)
+    expect(r.total).toBe(3)
+    expect(r.contados.map((c) => c.arquivo)).toEqual(["src/a.ts"])
+    const semIgnorar = avaliar(entrada({ arquivos: [arquivo("prototipo/.canvas/a.ts", 900)] }))
+    expect(semIgnorar.total).toBe(900)
+  })
+
   it("primeiro PR de adoção: passa e marca o arquivo sensível", () => {
     const r = avaliar(entrada({ config: undefined, arquivos: [arquivo(".github/portao.json", 8), arquivo(".github/workflows/portao.yml", 20)] }))
     expect(r.ok).toBe(true)
