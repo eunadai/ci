@@ -11,8 +11,13 @@ export interface Occurrence {
   readonly line: number
 }
 
-// Never checked: prose, copy (i18n), lockfiles, generated and vendored files.
+// The project's allowlist. It is read from the base, so a PR's own words only count after the merge.
+export const CONFIG_PATH = ".github/identifiers.json"
+
+// Never checked: prose, copy (i18n), lockfiles, generated and vendored files, and the allowlist itself,
+// whose words are data: a PR that adds words to it would otherwise flag those very words.
 export const DEFAULT_IGNORE: ReadonlyArray<string> = [
+  CONFIG_PATH,
   "docs/**",
   "**/*.{md,mdx,txt,rst,adoc}",
   "**/{CHANGELOG,LICENSE,NOTICE}*",

@@ -28054,66 +28054,10 @@ var githubLive = (acesso) => Layer_exports.effect(
 var escaparDado = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 var escaparPropriedade = (s) => escaparDado(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
 
-// src/identifiers/report.ts
-var CONFIG_PATH = ".github/identifiers.json";
-var passed = (r) => !r.block || r.findings.length === 0 && r.error === void 0;
-var count = (n) => n === 0 ? "nenhum identificador novo em portugu\xEAs" : n === 1 ? "1 identificador novo em portugu\xEAs" : `${n} identificadores novos em portugu\xEAs`;
-var sentence = (r) => {
-  if (r.error !== void 0) return `n\xE3o rodou: ${r.error}${r.block ? "" : " (s\xF3 aviso)"}`;
-  return `${count(r.findings.length)}${!r.block && r.findings.length > 0 ? " (s\xF3 aviso)" : ""}`;
-};
-var statusDescription = (r) => {
-  const text2 = sentence(r);
-  return text2.length <= 140 ? text2 : `${text2.slice(0, 139)}\u2026`;
-};
-var HOW_TO = `Use um nome em ingl\xEAs. Se \xE9 um termo do dom\xEDnio sem tradu\xE7\xE3o, ponha a palavra em \`words\` no \`${CONFIG_PATH}\`; se \xE9 texto para o usu\xE1rio, ele vai no arquivo de i18n.`;
-var DEAD_HOW_TO = "Um glob casa com o caminho inteiro a partir da raiz, sem `/` no come\xE7o ou no fim e sem pasta vazia, `.` ou `..`. Para uma pasta, use `pasta/**`.";
-var annotations = (r, max6 = 50) => {
-  const level = r.block ? "error" : "warning";
-  const lines = r.findings.slice(0, max6).map(
-    (f) => `::${level} file=${escaparPropriedade(f.file)},line=${f.line},title=Identificador em portugu\xEAs::${escaparDado(`\xAB${f.identifier}\xBB: ${f.words.join(", ")}. ${HOW_TO}`)}`
-  );
-  if (r.error !== void 0) lines.push(`::${level} title=Identificadores::${escaparDado(`n\xE3o rodou: ${r.error}`)}`);
-  for (const g of r.deadIgnore) {
-    lines.push(`::warning title=Glob do ignore sem efeito::${escaparDado(`O glob ${JSON.stringify(g)} do \`ignore\` do \`${CONFIG_PATH}\` nunca casa com um caminho, ent\xE3o n\xE3o ignora nada. ${DEAD_HOW_TO}`)}`);
-  }
-  return lines;
-};
-var cell = (text2) => text2.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
-var summary = (r, max6 = 100) => {
-  const clean2 = r.findings.length === 0 && r.error === void 0;
-  const emoji = clean2 ? "\u2705" : passed(r) ? "\u26A0\uFE0F" : "\u274C";
-  const parts2 = [`${emoji} **Identificadores em ingl\xEAs:** ${sentence(r)}.`];
-  if (r.findings.length > 0) {
-    parts2.push(
-      [
-        "| Identificador | Palavras em portugu\xEAs | Onde |",
-        "|---|---|---|",
-        ...r.findings.slice(0, max6).map((f) => `| \`${cell(f.identifier)}\` | ${cell(f.words.join(", "))} | \`${cell(f.file)}:${f.line}\` |`)
-      ].join("\n")
-    );
-    if (r.findings.length > max6) parts2.push(`\u2026 e mais ${r.findings.length - max6}.`);
-    parts2.push(HOW_TO);
-  }
-  if (r.legacy > 0) {
-    parts2.push(
-      r.legacy === 1 ? "1 identificador em portugu\xEAs que j\xE1 existe na base n\xE3o conta (c\xF3digo legado)." : `${r.legacy} identificadores em portugu\xEAs que j\xE1 existem na base n\xE3o contam (c\xF3digo legado).`
-    );
-  }
-  if (r.deadIgnore.length > 0) {
-    parts2.push(
-      `\u26A0\uFE0F O \`ignore\` do \`${CONFIG_PATH}\` tem globs que nunca casam com um caminho e n\xE3o ignoram nada: ${r.deadIgnore.map((g) => `\`${cell(JSON.stringify(g))}\``).join(", ")}. ${DEAD_HOW_TO}`
-    );
-  }
-  return `${parts2.join("\n\n")}
-`;
-};
-
-// src/identifiers/base.ts
-import { spawnSync } from "node:child_process";
-
 // src/identifiers/extract.ts
+var CONFIG_PATH = ".github/identifiers.json";
 var DEFAULT_IGNORE = [
+  CONFIG_PATH,
   "docs/**",
   "**/*.{md,mdx,txt,rst,adoc}",
   "**/{CHANGELOG,LICENSE,NOTICE}*",
@@ -28298,7 +28242,62 @@ var occurrences = (diff, ignore4) => {
 };
 var normalize3 = (w) => w.normalize("NFD").replace(new RegExp("\\p{M}", "gu"), "").toLowerCase();
 
+// src/identifiers/report.ts
+var passed = (r) => !r.block || r.findings.length === 0 && r.error === void 0;
+var count = (n) => n === 0 ? "nenhum identificador novo em portugu\xEAs" : n === 1 ? "1 identificador novo em portugu\xEAs" : `${n} identificadores novos em portugu\xEAs`;
+var sentence = (r) => {
+  if (r.error !== void 0) return `n\xE3o rodou: ${r.error}${r.block ? "" : " (s\xF3 aviso)"}`;
+  return `${count(r.findings.length)}${!r.block && r.findings.length > 0 ? " (s\xF3 aviso)" : ""}`;
+};
+var statusDescription = (r) => {
+  const text2 = sentence(r);
+  return text2.length <= 140 ? text2 : `${text2.slice(0, 139)}\u2026`;
+};
+var HOW_TO = `Use um nome em ingl\xEAs. Se \xE9 um termo do dom\xEDnio sem tradu\xE7\xE3o, ponha a palavra em \`words\` no \`${CONFIG_PATH}\`; se \xE9 texto para o usu\xE1rio, ele vai no arquivo de i18n.`;
+var DEAD_HOW_TO = "Um glob casa com o caminho inteiro a partir da raiz, sem `/` no come\xE7o ou no fim e sem pasta vazia, `.` ou `..`. Para uma pasta, use `pasta/**`.";
+var annotations = (r, max6 = 50) => {
+  const level = r.block ? "error" : "warning";
+  const lines = r.findings.slice(0, max6).map(
+    (f) => `::${level} file=${escaparPropriedade(f.file)},line=${f.line},title=Identificador em portugu\xEAs::${escaparDado(`\xAB${f.identifier}\xBB: ${f.words.join(", ")}. ${HOW_TO}`)}`
+  );
+  if (r.error !== void 0) lines.push(`::${level} title=Identificadores::${escaparDado(`n\xE3o rodou: ${r.error}`)}`);
+  for (const g of r.deadIgnore) {
+    lines.push(`::warning title=Glob do ignore sem efeito::${escaparDado(`O glob ${JSON.stringify(g)} do \`ignore\` do \`${CONFIG_PATH}\` nunca casa com um caminho, ent\xE3o n\xE3o ignora nada. ${DEAD_HOW_TO}`)}`);
+  }
+  return lines;
+};
+var cell = (text2) => text2.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+var summary = (r, max6 = 100) => {
+  const clean2 = r.findings.length === 0 && r.error === void 0;
+  const emoji = clean2 ? "\u2705" : passed(r) ? "\u26A0\uFE0F" : "\u274C";
+  const parts2 = [`${emoji} **Identificadores em ingl\xEAs:** ${sentence(r)}.`];
+  if (r.findings.length > 0) {
+    parts2.push(
+      [
+        "| Identificador | Palavras em portugu\xEAs | Onde |",
+        "|---|---|---|",
+        ...r.findings.slice(0, max6).map((f) => `| \`${cell(f.identifier)}\` | ${cell(f.words.join(", "))} | \`${cell(f.file)}:${f.line}\` |`)
+      ].join("\n")
+    );
+    if (r.findings.length > max6) parts2.push(`\u2026 e mais ${r.findings.length - max6}.`);
+    parts2.push(HOW_TO);
+  }
+  if (r.legacy > 0) {
+    parts2.push(
+      r.legacy === 1 ? "1 identificador em portugu\xEAs que j\xE1 existe na base n\xE3o conta (c\xF3digo legado)." : `${r.legacy} identificadores em portugu\xEAs que j\xE1 existem na base n\xE3o contam (c\xF3digo legado).`
+    );
+  }
+  if (r.deadIgnore.length > 0) {
+    parts2.push(
+      `\u26A0\uFE0F O \`ignore\` do \`${CONFIG_PATH}\` tem globs que nunca casam com um caminho e n\xE3o ignoram nada: ${r.deadIgnore.map((g) => `\`${cell(JSON.stringify(g))}\``).join(", ")}. ${DEAD_HOW_TO}`
+    );
+  }
+  return `${parts2.join("\n\n")}
+`;
+};
+
 // src/identifiers/base.ts
+import { spawnSync } from "node:child_process";
 var git = (cwd, args2) => spawnSync("git", ["-c", "core.quotePath=false", ...args2], { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
 var baseHits = (rev, identifiers, exclude, cwd) => {
   const grep = git(cwd, ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), rev, "--", ...excludePathspecs(exclude)]);

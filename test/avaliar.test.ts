@@ -223,6 +223,13 @@ describe("workflows", () => {
   })
 })
 
+describe("identifiers.json", () => {
+  it("mexer nas palavras dos identificadores é sensível: o check de identificadores não confere esse arquivo", () => {
+    const r = avaliar(entrada({ arquivos: [arquivo(".github/identifiers.json", 1), arquivo("src/a.ts", 3)] }))
+    expect(r.sensiveis).toEqual([".github/identifiers.json"])
+  })
+})
+
 describe("renomeios", () => {
   it("código movido para docs/ não é PR só de documentação", () => {
     const r = avaliar(entrada({ arquivos: [{ filename: "docs/x.md", previous_filename: "src/x.ts", additions: 0, deletions: 0 }] }))

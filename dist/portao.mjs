@@ -27870,7 +27870,7 @@ var IGNORAR_PADRAO = [
   "**/*.{woff,woff2,ttf,otf,png,jpg,jpeg,gif,webp,ico,pdf,mp4,mp3,db,sqlite}"
 ];
 var SEMPRE_CONTA = ["**/package.json", "**/tsconfig*.json"];
-var ARQUIVOS_SENSIVEIS = [".github/portao.json", ".github/workflows/**"];
+var ARQUIVOS_SENSIVEIS = [".github/portao.json", ".github/identifiers.json", ".github/workflows/**"];
 
 // src/glob.ts
 var globParaRegex = (glob) => {
@@ -28169,7 +28169,7 @@ var comentario = (r, config, runUrl) => {
   }
   if (r.sensiveis.length > 0) {
     linhas.push(
-      `\u26A0\uFE0F Este PR mexe no port\xE3o ou em workflows (${r.sensiveis.join(", ")}): precisa de olho humano. Um workflow do PR pode gravar o status \xABportao\xBB, e regras novas s\xF3 valem depois do merge.`
+      `\u26A0\uFE0F Este PR mexe no port\xE3o, nos identificadores ou em workflows (${r.sensiveis.join(", ")}): precisa de olho humano. Um workflow do PR pode gravar o status \xABportao\xBB, e regras novas s\xF3 valem depois do merge.`
     );
   }
   linhas.push(`[Ver o run](${runUrl})`);

@@ -91,6 +91,29 @@ describe("identifiers", () => {
     expect(t.status).toEqual([{ state: "success", description: "1 identificador novo em português (só aviso)" }])
   })
 
+  // The allowlist is read from the base; its own diff is data, so a PR that only adds words passes.
+  it("um PR que só adiciona palavras ao identifiers.json não tem achado", async () => {
+    const t = setup()
+    const allowlistDiff = [
+      "diff --git a/.github/identifiers.json b/.github/identifiers.json",
+      "--- a/.github/identifiers.json",
+      "+++ b/.github/identifiers.json",
+      "@@ -2 +2 @@",
+      '-  "words": ["frete"],',
+      '+  "words": ["frete", "pedido", "pagamento", "cartao"],',
+    ].join("\n")
+    const searched: Array<ReadonlyArray<string>> = []
+    const env = t.env({
+      block: true,
+      config: JSON.stringify({ words: ["frete"] }),
+      diff: allowlistDiff,
+      inBase: (i) => Effect.sync(() => (searched.push(i), [])),
+    })
+    expect(await t.run(env)).toEqual({ ok: true })
+    expect(t.status).toEqual([{ state: "success", description: "nenhum identificador novo em português" }])
+    expect(searched).toEqual([])
+  })
+
   it("config inválido ou cspell quebrado: não rodou, e com block reprova", async () => {
     const t = setup()
     expect(await t.run(t.env({ block: true, config: `{"palavras": []}` }))).toEqual({ ok: false })
