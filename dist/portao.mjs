@@ -27838,7 +27838,9 @@ var Config = Schema_exports.Struct({
       labelAprovado: Schema_exports.optionalKey(Schema_exports.String),
       // GitHub logins allowed to release the limit with the label. Absent: only the repo owner.
       // Needed when the repo belongs to an organization, whose login is never a label's actor.
-      aprovadores: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.NonEmptyString).check(Schema_exports.isNonEmpty()))
+      aprovadores: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.NonEmptyString).check(Schema_exports.isNonEmpty())),
+      // Which lines count toward the limit. Absent: added and deleted lines (CONTAR_PADRAO).
+      contar: Schema_exports.optionalKey(Schema_exports.Literals(["adicionadas", "adicionadas-e-removidas"]))
     })
   ),
   soDocs: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String)),
@@ -27850,6 +27852,7 @@ var decodeConfig = (u) => Schema_exports.decodeUnknownEffect(Config, { onExcessP
   Effect_exports.mapError((erro) => new ConfigInvalida({ mensagem: `.github/portao.json inv\xE1lido: ${erro.message}` }))
 );
 var LABEL_APROVADO_PADRAO = "aprovado-nadai";
+var CONTAR_PADRAO = "adicionadas-e-removidas";
 var IGNORAR_PADRAO = [
   "docs/**",
   "**/*.md",
@@ -27949,7 +27952,8 @@ var avaliar = (e) => {
   if (!tamanho) return { ...base, ok: true, motivos: [], tipo: "semRegras" };
   const conta = casaAlgum(SEMPRE_CONTA);
   const ignora = casaAlgum([...IGNORAR_PADRAO, ...tamanho.ignorar ?? []]);
-  const contados = e.arquivos.filter((a) => conta(a.filename) || !ignora(a.filename)).map((a) => ({ arquivo: a.filename, linhas: a.additions + a.deletions }));
+  const soAdicionadas = (tamanho.contar ?? CONTAR_PADRAO) === "adicionadas";
+  const contados = e.arquivos.filter((a) => conta(a.filename) || !ignora(a.filename)).map((a) => ({ arquivo: a.filename, linhas: soAdicionadas ? a.additions : a.additions + a.deletions }));
   const total = contados.reduce((soma, c) => soma + c.linhas, 0);
   const label = tamanho.labelAprovado ?? LABEL_APROVADO_PADRAO;
   const temLabel = e.labels.includes(label);
@@ -28131,6 +28135,7 @@ var escaparDado = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\
 
 // src/relatorio.ts
 var labelDe = (config) => config?.tamanho?.labelAprovado ?? LABEL_APROVADO_PADRAO;
+var contagemDe = (config) => (config?.tamanho?.contar ?? CONTAR_PADRAO) === "adicionadas" ? "Contagem: s\xF3 linhas adicionadas." : "Contagem: linhas adicionadas e removidas.";
 var ehMotivoDeTamanho = (m) => /linhas de lógica, acima do limite/.test(m);
 var titulo = (r, config) => {
   if (!r.ok) {
@@ -28154,6 +28159,7 @@ var comentario = (r, config, runUrl) => {
     if (doTamanho) {
       const maiores = [...r.contados].sort((a, b) => b.linhas - a.linhas).slice(0, 5);
       linhas.push(`Maiores: ${maiores.map((c) => `\`${c.arquivo}\` ${c.linhas}`).join(" \xB7 ")}`);
+      linhas.push(contagemDe(config));
     }
     for (const m of r.motivos.filter((m2) => !ehMotivoDeTamanho(m2))) linhas.push(`- ${m}`);
     if (doTamanho) {
@@ -28184,7 +28190,7 @@ var descricaoStatus = (r) => {
 var summary = (r, config) => {
   const linhas = [titulo(r, config), ...r.motivos.map((m) => `- ${m}`)];
   if (r.total !== void 0) {
-    linhas.push("", `Linhas de l\xF3gica: ${r.total} (limite ${r.limite}).`);
+    linhas.push("", `Linhas de l\xF3gica: ${r.total} (limite ${r.limite}).`, contagemDe(config));
     for (const c of r.contados) linhas.push(`- ${c.arquivo}: ${c.linhas}`);
   }
   return linhas.join("\n");
