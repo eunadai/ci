@@ -72,7 +72,7 @@ Um disparo manual precisa rodar no branch padrão, onde o environment deixa: `gh
 
 ## Regras (`.github/portao.json`)
 
-Nenhuma regra fica ligada sem config. O arquivo é lido do **branch base** do PR. Por isso, mudar o config num PR só vale depois do merge, e o PR não consegue afrouxar o próprio portão. Um PR que mexe no `portao.json` ou em qualquer arquivo de `.github/workflows/` recebe um aviso de "olho humano" no comentário: qualquer workflow pode gravar o status `portao`. Para que só o portão consiga, veja "Status que só o portão grava".
+Nenhuma regra fica ligada sem config. O arquivo é lido do **branch base** do PR. Por isso, mudar o config num PR só vale depois do merge, e o PR não consegue afrouxar o próprio portão. Um PR que mexe no `portao.json`, no `identifiers.json` ou em qualquer arquivo de `.github/workflows/` recebe um aviso de "olho humano" no comentário: qualquer workflow pode gravar o status `portao`. Para que só o portão consiga, veja "Status que só o portão grava".
 
 | Campo | O que faz |
 |---|---|
@@ -281,7 +281,7 @@ Comece só avisando. Quando a lista de palavras do projeto estabilizar, ligue `b
 
 ### Palavras e caminhos do projeto (`.github/identifiers.json`)
 
-Opcional, e lido do **branch base** do PR: um PR não consegue liberar as próprias palavras. Uma palavra nova do domínio entra por um PR antes (ou no mesmo PR, só avisando).
+Opcional, e lido do **branch base** do PR: um PR não consegue liberar as próprias palavras. Uma palavra nova do domínio entra por um PR antes (ou no mesmo PR, só avisando). O próprio arquivo nunca é conferido, então o PR que só adiciona palavras a ele passa; o portão marca esse PR para olho humano.
 
 ```json
 {

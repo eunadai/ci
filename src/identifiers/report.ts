@@ -1,8 +1,9 @@
 // Pure: the copy the identifiers workflow writes (summary, annotations, status). pt-BR, and pinned by
 // the tests: it is part of the contract.
 import { escaparDado, escaparPropriedade } from "../comando.js"
+import { CONFIG_PATH } from "./extract.js"
 
-export const CONFIG_PATH = ".github/identifiers.json"
+export { CONFIG_PATH }
 
 // A new identifier with Portuguese words: only those words are listed.
 export interface Finding {

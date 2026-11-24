@@ -82,6 +82,11 @@ describe("occurrences", () => {
     expect(ids(diff("README.md", ["pagamento"]))).toEqual([])
     expect(ids(diff("legado/x.ts", ["pagamento"]), ["legado/**"])).toEqual([])
   })
+
+  it("ignora o próprio identifiers.json, também como legado", () => {
+    expect(ids(diff(".github/identifiers.json", [`  "words": ["pedido", "pagamento"],`], { created: true }))).toEqual([])
+    expect(casaAlgum(legacyIgnore([]))(".github/identifiers.json")).toBe(true)
+  })
 })
 
 describe("parseGrep", () => {
