@@ -170,6 +170,17 @@ describe("o pre-push confere o que está sendo enviado, não o HEAD", () => {
 
     p.git("tag", "v9", "big")
     expect(p.push("v9").status).toBe(0)
+
+    // With no branch to check, an invalid package.json is never read.
+    writeFileSync(join(p.work, "package.json"), "{ broken")
+    p.git("tag", "v10", "big")
+    expect(p.push("v10").status).toBe(0)
+    expect(p.push("--no-verify big:refs/heads/gone").status).toBe(0)
+    expect(p.push(":gone").status).toBe(0)
+    // A branch still reads it, and fails with the reason.
+    const branch = p.push("small:refs/heads/after-broken")
+    expect(branch.status).not.toBe(0)
+    expect(branch.out).toContain("package.json não é JSON válido")
   })
 
   it("LOCAL_CHECKS_SKIP_SIZE=1 pula a contagem do portão, e o identifiers continua", () => {

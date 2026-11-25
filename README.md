@@ -317,7 +317,15 @@ Ligar num repo, no `package.json` (npm ou pnpm):
 É só isso: nenhum script nem hook versionado no repo. Num clone de desenvolvimento, o `prepare` roda a cada install e faz duas coisas:
 
 - **instala o cspell** e o dicionário pt-BR, pelo mesmo `dist/identifiers/package-lock.json` que a Action usa. Só esse passo precisa de rede: sem rede, ele só avisa, e o check roda depois de um `local-checks setup` que dê certo;
-- **liga o pre-push** na pasta de hooks do git (`.git/hooks/pre-push`, a mesma para todos os worktrees do clone). O hook só chama o `local-checks pre-push`, então uma correção do check chega pelo pacote, e o próximo install reescreve o hook. Se o clone já tem um `core.hooksPath`, ou um `pre-push` de outra ferramenta, nada muda: o install avisa e diz a linha para chamar de lá (`node_modules/.bin/local-checks pre-push "$@"`).
+- **liga o pre-push** na pasta de hooks do git (`.git/hooks/pre-push`, a mesma para todos os worktrees do clone). O hook só chama o `local-checks pre-push`, então uma correção do check chega pelo pacote, e o próximo install reescreve o hook. Se o clone já tem um `pre-push` de outra ferramenta, ele fica como está: o install avisa e diz a linha para chamar de lá (`node_modules/.bin/local-checks pre-push "$@"`).
+
+**Clone com `core.hooksPath` definido** (por exemplo `.githooks`, da receita antiga): o install não muda essa config e, por isso, não liga o hook, só avisa. Para ligar, tire a config em cada clone e o hook antigo do repo, e rode o install de novo:
+
+```sh
+git config --unset core.hooksPath
+git rm .githooks/pre-push   # o hook versionado da receita antiga, num PR do repo
+npm install                 # ou pnpm install: o install liga o pre-push em .git/hooks
+```
 
 O install nunca quebra: ele sai com `0` e não faz nada no CI (`CI` definido), fora da raiz de um work tree git (um `git archive`, um pacote dentro de `node_modules`) e numa pasta que o repo exclui (abaixo). Sem as devDependencies (`npm ci --omit=dev`, `pnpm install --prod`, `NODE_ENV=production`), o bin não existe: o `command -v` pula a chamada, em vez de o script sair com 127 e derrubar o install.
 

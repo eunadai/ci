@@ -24543,9 +24543,11 @@ Daqui n\xE3o d\xE1 para ver as labels do PR: no GitHub, a label \xAB${label}\xBB
 var prePush = async (remote, block) => {
   if (process.stdin.isTTY) throw new Usage("pre-push l\xEA as refs do stdin, como o git manda num hook");
   const branches = branchesToCheck(readFileSync3(0, "utf8"));
+  if (branches.length === 0) return 0;
+  const blocking = block();
   const skipSize = process.env[SKIP_SIZE] === "1";
   const checks = new Set(skipSize ? ["identifiers"] : CHECKS);
-  if (skipSize && branches.length > 0) console.log(`${SKIP_SIZE}: a contagem do port\xE3o foi pulada; o identifiers roda.
+  if (skipSize) console.log(`${SKIP_SIZE}: a contagem do port\xE3o foi pulada; o identifiers roda.
 `);
   let base = defaultBase();
   if (remote !== void 0) {
@@ -24557,7 +24559,7 @@ var prePush = async (remote, block) => {
   let status = 0;
   for (const b of branches) {
     console.log(`pre-push: ${b.branch} (${b.sha.slice(0, 7)})`);
-    status = Math.max(status, await check3(checks, base, b.sha, { branch: b.branch, block, cspellOptional: true }));
+    status = Math.max(status, await check3(checks, base, b.sha, { branch: b.branch, block: blocking, cspellOptional: true }));
   }
   return status;
 };
@@ -24585,14 +24587,14 @@ var main = async () => {
     return 0;
   }
   process.chdir(git4("rev-parse", "--show-toplevel"));
-  const block = values2.block || readProjectConfig(process.cwd()).block === true;
+  const block = () => values2.block || readProjectConfig(process.cwd()).block === true;
   if (positionals[0] === "pre-push" && positionals.length <= 3) return prePush(positionals[1], block);
   const unknownArgs = positionals.filter((p) => !CHECKS.includes(p));
   if (unknownArgs.length > 0) throw new Usage(`check desconhecido: ${unknownArgs.join(", ")}`);
   const checks = new Set(positionals.length === 0 ? CHECKS : positionals);
   const headRef = values2.head ?? "HEAD";
   const branch = headRef === "HEAD" ? git4("rev-parse", "--abbrev-ref", "HEAD") : headRef.replace(/^refs\/heads\//, "");
-  return check3(checks, values2.base ?? defaultBase(), headRef, { branch, block, cspellOptional: false });
+  return check3(checks, values2.base ?? defaultBase(), headRef, { branch, block: block(), cspellOptional: false });
 };
 try {
   process.exitCode = await main();

@@ -118,12 +118,15 @@ const check = async (checks: ReadonlySet<Check>, baseRef: string, headRef: strin
 }
 
 // The hook's job: every branch on stdin, against the pushed remote's default branch.
-const prePush = async (remote: string | undefined, block: boolean): Promise<number> => {
+// `block` reads package.json, so a push with no branch (tags, deletions) never depends on it.
+const prePush = async (remote: string | undefined, block: () => boolean): Promise<number> => {
   if (process.stdin.isTTY) throw new Usage("pre-push lê as refs do stdin, como o git manda num hook")
   const branches = branchesToCheck(readFileSync(0, "utf8"))
+  if (branches.length === 0) return 0
+  const blocking = block()
   const skipSize = process.env[SKIP_SIZE] === "1"
   const checks = new Set<Check>(skipSize ? ["identifiers"] : CHECKS)
-  if (skipSize && branches.length > 0) console.log(`${SKIP_SIZE}: a contagem do portão foi pulada; o identifiers roda.\n`)
+  if (skipSize) console.log(`${SKIP_SIZE}: a contagem do portão foi pulada; o identifiers roda.\n`)
   let base = defaultBase()
   if (remote !== undefined) {
     try {
@@ -136,7 +139,7 @@ const prePush = async (remote: string | undefined, block: boolean): Promise<numb
   let status = 0
   for (const b of branches) {
     console.log(`pre-push: ${b.branch} (${b.sha.slice(0, 7)})`)
-    status = Math.max(status, await check(checks, base, b.sha, { branch: b.branch, block, cspellOptional: true }))
+    status = Math.max(status, await check(checks, base, b.sha, { branch: b.branch, block: blocking, cspellOptional: true }))
   }
   return status
 }
@@ -166,14 +169,14 @@ const main = async (): Promise<number> => {
     return 0
   }
   process.chdir(git("rev-parse", "--show-toplevel"))
-  const block = values.block || readProjectConfig(process.cwd()).block === true
+  const block = () => values.block || readProjectConfig(process.cwd()).block === true
   if (positionals[0] === "pre-push" && positionals.length <= 3) return prePush(positionals[1], block)
   const unknownArgs = positionals.filter((p) => !(CHECKS as ReadonlyArray<string>).includes(p))
   if (unknownArgs.length > 0) throw new Usage(`check desconhecido: ${unknownArgs.join(", ")}`)
   const checks = new Set<Check>(positionals.length === 0 ? CHECKS : (positionals as Array<Check>))
   const headRef = values.head ?? "HEAD"
   const branch = headRef === "HEAD" ? git("rev-parse", "--abbrev-ref", "HEAD") : headRef.replace(/^refs\/heads\//, "")
-  return check(checks, values.base ?? defaultBase(), headRef, { branch, block, cspellOptional: false })
+  return check(checks, values.base ?? defaultBase(), headRef, { branch, block: block(), cspellOptional: false })
 }
 
 try {
