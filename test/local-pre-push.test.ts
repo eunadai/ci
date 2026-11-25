@@ -154,6 +154,11 @@ describe("o pre-push confere o que está sendo enviado, não o HEAD", () => {
     expect(small.status).toBe(0)
     expect(small.out).toContain("⚠️ **Identificadores em inglês:** não rodou")
     expect(p.onRemote("small")).toBe(true)
+
+    // A push to the remote's path, not its name, uses the default base.
+    const byPath = sh(p.work, `git push ${p.remote} small:refs/heads/by-path`)
+    expect(byPath.status).toBe(0)
+    expect(byPath.out).toContain("Base origin/main")
   })
 
   it("deixa passar a remoção de branch e as tags", () => {
