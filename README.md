@@ -112,6 +112,34 @@ Sem `runner`, o job roda em `["self-hosted","macOS"]` (o padrão do input). Em r
 
 Só `typecheck`, `lint` e `test` viram passo, nessa ordem. Outro nome em `scripts` gera um aviso e não roda: use um job próprio.
 
+### Entradas opcionais
+
+Todas vêm desligadas. Sem elas, o job roda os mesmos passos de antes.
+
+```yaml
+jobs:
+  ci:
+    permissions:
+      contents: read
+      statuses: write # só para status-context
+    uses: eunadai/ci/.github/workflows/ci-node.yml@v1
+    with:
+      runner: '["ubuntu-latest"]'
+      fetch-depth: 0
+      npm-cache: true
+      skip-docs: '["^docs/", "\\.md$"]'
+      pr-scripts: '["check:changeset"]'
+      status-context: checks
+```
+
+- **`fetch-depth`** (padrão `1`): a profundidade do checkout.
+- **`skip-docs`** (padrão `[]`): regex de caminhos. Num `pull_request`, se todo arquivo do PR bate com alguma, o job pula a instalação e os scripts, passa e diz isso no summary. A comparação é com a base do PR (`git diff --no-renames base...head`), então um arquivo movido de `src/` para `docs/` não conta como documentação. Pede `fetch-depth: 0`; com outro valor, o job falha e diz por quê.
+- **`npm-cache`** (padrão `false`): guarda o `~/.npm` (nunca o `node_modules`), com a chave `<os>-npm-<hash do node-version-file>-<hash dos package-lock.json>` e volta ao último cache do mesmo sistema e Node quando o lockfile muda.
+- **`pr-scripts`** (padrão `[]`): scripts do `package.json` que rodam só em `pull_request`, depois do `npm ci` e antes do `typecheck`, na ordem da lista. Eles recebem `BASE_SHA`, `HEAD_SHA`, `HEAD_REF`, `HEAD_REPO`, `BASE_REF` e `REPOSITORY`. O primeiro que falha para o job. Um nome que não existe no `package.json` também falha, ao contrário dos scripts de `scripts`: uma checagem de PR não pode sumir em silêncio.
+- **`status-context`** (padrão vazio): o nome de um commit status com o resultado do job, `success` ou `failure`, com o link do run. Num `pull_request`, ele vai no head do PR; nos outros eventos, no `GITHUB_SHA`. O chamador dá `statuses: write`. Num PR de fork ou do Dependabot, o token é só leitura e o status não sai.
+
+Para um ruleset, exija o commit status de `status-context`, e não o check do job (`<job chamador> / checks`), como no `portao`. O check do job não chega a um PR cujo CI roda por `workflow_dispatch`, e o commit status chega. Não chame o job chamador pelo mesmo nome do status, para os dois não se confundirem na lista de checks.
+
 ## CI Python (`ci-python.yml`)
 
 Roda o CI de um repo Python **num job só**: uma instalação por run, e depois cada comando como um grupo próprio. A instalação segue o que o repo tem: `uv.lock` → `uv sync --frozen`; senão `pyproject.toml` → `pip install -e .` (com o extra `dev`, se o projeto declarar um); senão `requirements.txt` → `pip install -r`. O Python vem do `.python-version` do repo, ou do input `python-version` (padrão `3.12`).

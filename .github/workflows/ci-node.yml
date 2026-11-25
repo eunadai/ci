@@ -2,6 +2,11 @@
 # script as its own step so the PR shows which one failed. A script missing from package.json is
 # skipped with a warning annotation and a line in the summary, never silently. A name in `scripts`
 # that is not one of the fixed steps (typecheck, lint, test) gets a warning too: it does not run here.
+#
+# Every optional input below is off by default, so a caller that passes none of them runs the same
+# steps as before: `skip-docs` (a docs-only PR skips the install and the scripts), `fetch-depth`,
+# `npm-cache` (~/.npm, never node_modules), `pr-scripts` (package.json scripts that run only on PRs,
+# with the PR's refs in the environment) and `status-context` (a commit status with the job's result).
 name: CI Node
 
 on:
@@ -25,6 +30,26 @@ on:
         description: JSON de variáveis de ambiente para os scripts
         type: string
         default: '{}'
+      fetch-depth:
+        description: Profundidade do checkout (0 é o histórico inteiro, pedido por skip-docs)
+        type: number
+        default: 1
+      skip-docs:
+        description: JSON com regex de caminhos; um PR em que todo arquivo bate com alguma pula instalação e scripts
+        type: string
+        default: '[]'
+      npm-cache:
+        description: Guarda ~/.npm entre runs (nunca o node_modules)
+        type: boolean
+        default: false
+      pr-scripts:
+        description: JSON com scripts do package.json que rodam só em pull_request, antes do typecheck
+        type: string
+        default: '[]'
+      status-context:
+        description: Nome do commit status com o resultado do job (vazio, desligado); o chamador dá statuses write
+        type: string
+        default: ''
 
 jobs:
   checks:
@@ -34,11 +59,38 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: ${{ inputs.fetch-depth }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: ${{ inputs.node-version-file }}
           # setup-node >= v5 caches on its own when package.json names npm in packageManager; keep v4's no-cache behaviour.
           package-manager-cache: false
+      # A PR is docs-only when it changes at least one file and every file matches one of the regexes.
+      # --no-renames: a file moved from src/ into docs/ shows both paths, so it is not docs-only. Three
+      # dots: against the merge base, which needs the whole history.
+      - name: Só documentação?
+        id: docs
+        if: github.event_name == 'pull_request' && inputs.skip-docs != '[]'
+        env:
+          SKIP_DOCS: ${{ inputs.skip-docs }}
+          FETCH_DEPTH: ${{ inputs.fetch-depth }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$FETCH_DEPTH" != "0" ]; then
+            echo "::error title=CI Node::skip-docs precisa de fetch-depth: 0 (recebeu $FETCH_DEPTH) para comparar o PR com a base"
+            exit 1
+          fi
+          git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/pr-files.txt"
+          node -e '
+            const fs = require("fs")
+            const patterns = JSON.parse(process.env.SKIP_DOCS).map((p) => new RegExp(p))
+            const files = fs.readFileSync(process.argv[1], "utf8").split("\n").filter(Boolean)
+            if (files.length > 0 && files.every((f) => patterns.some((p) => p.test(f)))) {
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, "so_docs=true\n")
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "PR só de documentação: instalação e testes pulados.\n")
+            }
+          ' "$RUNNER_TEMP/pr-files.txt"
       - name: Scripts
         env:
           SCRIPTS: ${{ inputs.scripts }}
@@ -55,9 +107,43 @@ jobs:
         env:
           VARS: ${{ inputs.env }}
         run: node -e 'for (const [k, v] of Object.entries(JSON.parse(process.env.VARS))) require("fs").appendFileSync(process.env.GITHUB_ENV, k + "=" + v + "\n")'
-      - run: npm ci
+      # restore-keys falls back to the latest cache of the same OS and Node when the lockfile changes.
+      - name: Cache do npm
+        if: inputs.npm-cache && steps.docs.outputs.so_docs != 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles(inputs.node-version-file) }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-${{ hashFiles(inputs.node-version-file) }}-
+      - name: npm ci
+        if: steps.docs.outputs.so_docs != 'true'
+        run: npm ci
+      # Unlike the fixed steps, a name missing from package.json fails here: a PR check must not vanish.
+      - name: Scripts do PR
+        if: github.event_name == 'pull_request' && inputs.pr-scripts != '[]' && steps.docs.outputs.so_docs != 'true'
+        env:
+          PR_SCRIPTS: ${{ inputs.pr-scripts }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          names=$(node -e 'for (const name of JSON.parse(process.env.PR_SCRIPTS)) console.log(name)')
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            if ! node -e 'process.exit(require("./package.json").scripts?.[process.argv[1]] ? 0 : 1)' "$name"; then
+              echo "::error title=CI Node::script «$name» pedido em pr-scripts não existe no package.json"
+              exit 1
+            fi
+            echo "::group::npm run $name"
+            npm run "$name"
+            echo "::endgroup::"
+          done <<< "$names"
       - name: Typecheck
-        if: contains(fromJSON(inputs.scripts), 'typecheck')
+        if: contains(fromJSON(inputs.scripts), 'typecheck') && steps.docs.outputs.so_docs != 'true'
         run: |
           if node -e 'process.exit(require("./package.json").scripts?.typecheck ? 0 : 1)'; then
             npm run typecheck
@@ -66,7 +152,7 @@ jobs:
             echo "⚠️ script «typecheck» não existe, pulado" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Lint
-        if: contains(fromJSON(inputs.scripts), 'lint')
+        if: contains(fromJSON(inputs.scripts), 'lint') && steps.docs.outputs.so_docs != 'true'
         run: |
           if node -e 'process.exit(require("./package.json").scripts?.lint ? 0 : 1)'; then
             npm run lint
@@ -75,7 +161,7 @@ jobs:
             echo "⚠️ script «lint» não existe, pulado" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Test
-        if: contains(fromJSON(inputs.scripts), 'test')
+        if: contains(fromJSON(inputs.scripts), 'test') && steps.docs.outputs.so_docs != 'true'
         run: |
           if node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)'; then
             npm run test
@@ -83,3 +169,17 @@ jobs:
             echo "::warning title=CI Node::script «test» pedido em scripts não existe no package.json e foi pulado"
             echo "⚠️ script «test» não existe, pulado" >> "$GITHUB_STEP_SUMMARY"
           fi
+      # Always the last step: job.status is the result of every step above it. On a PR the status goes
+      # on the PR's head, not on GITHUB_SHA (the merge commit), so a ruleset sees it. A fork's or
+      # Dependabot's token is read-only, and there the status is not written.
+      - name: Status no commit
+        if: always() && inputs.status-context != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTEXT: ${{ inputs.status-context }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+            -f state="$STATE" -f context="$CONTEXT" -f target_url="$RUN_URL" -f description="CI Node"
