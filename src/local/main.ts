@@ -121,11 +121,11 @@ const check = async (checks: ReadonlySet<Check>, baseRef: string, headRef: strin
 const prePush = async (remote: string | undefined, block: boolean): Promise<number> => {
   if (process.stdin.isTTY) throw new Usage("pre-push lê as refs do stdin, como o git manda num hook")
   const branches = branchesToCheck(readFileSync(0, "utf8"))
-  const skipSize = (process.env[SKIP_SIZE] ?? "") !== ""
+  const skipSize = process.env[SKIP_SIZE] === "1"
   const checks = new Set<Check>(skipSize ? ["identifiers"] : CHECKS)
   if (skipSize && branches.length > 0) console.log(`${SKIP_SIZE}: a contagem do portão foi pulada; o identifiers roda.\n`)
   let base = defaultBase()
-  if (remote !== undefined && /^[\w.-]+$/.test(remote)) {
+  if (remote !== undefined) {
     try {
       base = git("rev-parse", "--abbrev-ref", `${remote}/HEAD`)
     } catch {

@@ -148,6 +148,13 @@ describe("local-checks install: num clone de desenvolvimento", () => {
     expect(run(root).lines).toEqual([])
   })
 
+  it("um core.hooksPath vazio, mas definido, também fica como está", () => {
+    const root = clone()
+    git(root, "config", "core.hooksPath", "")
+    expect(run(root).lines[0]).toContain("local-checks install: o core.hooksPath é «», e ele fica como está")
+    expect(existsSync(hookFile(root))).toBe(false)
+  })
+
   it("sem rede (o setup falha ou lança), só avisa e liga o hook do mesmo jeito", () => {
     for (const setup of [() => 1, () => { throw new Error("npm ci: ENOTFOUND") }]) {
       const root = clone()

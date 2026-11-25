@@ -24401,9 +24401,9 @@ var skipReason = (ctx) => {
   return void 0;
 };
 var wireHook = (root, log2) => {
-  const hooksPath = git3(root, ["config", "--get", "core.hooksPath"]) ?? "";
+  const hooksPath = git3(root, ["config", "--get", "core.hooksPath"]);
   const call = `node_modules/.bin/local-checks pre-push "$@"`;
-  if (hooksPath !== "") {
+  if (hooksPath !== void 0) {
     const file2 = join3(resolve4(root, hooksPath.replace(/^~(?=$|\/)/, homedir2())), "pre-push");
     if (existsSync2(file2) && runsCheck(readFileSync2(file2, "utf8"))) return void 0;
     return `o core.hooksPath \xE9 \xAB${hooksPath}\xBB, e ele fica como est\xE1: o push n\xE3o \xE9 conferido. Chame \xAB${call}\xBB no pre-push de l\xE1, ou rode \xABgit config --unset core.hooksPath\xBB e o install de novo.`;
@@ -24543,12 +24543,12 @@ Daqui n\xE3o d\xE1 para ver as labels do PR: no GitHub, a label \xAB${label}\xBB
 var prePush = async (remote, block) => {
   if (process.stdin.isTTY) throw new Usage("pre-push l\xEA as refs do stdin, como o git manda num hook");
   const branches = branchesToCheck(readFileSync3(0, "utf8"));
-  const skipSize = (process.env[SKIP_SIZE] ?? "") !== "";
+  const skipSize = process.env[SKIP_SIZE] === "1";
   const checks = new Set(skipSize ? ["identifiers"] : CHECKS);
   if (skipSize && branches.length > 0) console.log(`${SKIP_SIZE}: a contagem do port\xE3o foi pulada; o identifiers roda.
 `);
   let base = defaultBase();
-  if (remote !== void 0 && /^[\w.-]+$/.test(remote)) {
+  if (remote !== void 0) {
     try {
       base = git4("rev-parse", "--abbrev-ref", `${remote}/HEAD`);
     } catch {

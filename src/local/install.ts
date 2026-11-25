@@ -80,9 +80,10 @@ export const skipReason = (ctx: InstallContext): string | undefined => {
 
 // Wires the pre-push hook, or says why not. Returns the warning, if any.
 const wireHook = (root: string, log: (line: string) => void): string | undefined => {
-  const hooksPath = git(root, ["config", "--get", "core.hooksPath"]) ?? ""
+  // Set to "" is not the same as unset: git then looks for hooks in the root folder.
+  const hooksPath = git(root, ["config", "--get", "core.hooksPath"])
   const call = `node_modules/.bin/local-checks pre-push "$@"`
-  if (hooksPath !== "") {
+  if (hooksPath !== undefined) {
     const file = join(resolve(root, hooksPath.replace(/^~(?=$|\/)/, homedir())), "pre-push")
     if (existsSync(file) && runsCheck(readFileSync(file, "utf8"))) return undefined
     return `o core.hooksPath é «${hooksPath}», e ele fica como está: o push não é conferido. Chame «${call}» no pre-push de lá, ou rode «git config --unset core.hooksPath» e o install de novo.`

@@ -174,6 +174,8 @@ describe("o pre-push confere o que está sendo enviado, não o HEAD", () => {
     expect(r.out).toContain("LOCAL_CHECKS_SKIP_SIZE: a contagem do portão foi pulada; o identifiers roda.")
     expect(r.out).toContain("**Identificadores em inglês:**")
     expect(r.out).not.toContain("linhas de lógica")
+    // Only "1" skips it.
+    expect(p.push("big:refs/heads/big2", { LOCAL_CHECKS_SKIP_SIZE: "0" }).status).not.toBe(0)
   })
 
   it("num checkout sem o bin, avisa e deixa passar", () => {
