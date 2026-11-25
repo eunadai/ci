@@ -159,6 +159,12 @@ describe("o pre-push confere o que está sendo enviado, não o HEAD", () => {
     const byPath = sh(p.work, `git push ${p.remote} small:refs/heads/by-path`)
     expect(byPath.status).toBe(0)
     expect(byPath.out).toContain("Base origin/main")
+
+    // A remote HEAD that points to a pruned branch falls back to the default base too.
+    p.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/gone")
+    const dangling = p.push("small:refs/heads/dangling")
+    expect(dangling.status).toBe(0)
+    expect(dangling.out).toContain("Base origin/main")
   })
 
   it("deixa passar a remoção de branch e as tags", () => {
