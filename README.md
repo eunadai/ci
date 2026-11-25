@@ -301,7 +301,7 @@ O cspell (10.4.0) e o dicionário pt-BR são fixos pelo `dist/identifiers/packag
 
 O `identifiers` e a contagem do portão também rodam no clone, sem token do GitHub e sem rede. O `local-checks` compara a branch com a base do mesmo jeito que as Actions comparam o PR: do merge base ao head, com o `.github/identifiers.json` e o `.github/portao.json` lidos da base. Ele imprime o mesmo summary que a Action escreveria e sai com `1` quando um check reprova. Assim o erro aparece antes do push, e não depois de mais uma volta de CI.
 
-Ligar num repo, no `package.json`:
+Ligar num repo, no `package.json` (npm ou pnpm):
 
 ```json
 {
@@ -309,23 +309,56 @@ Ligar num repo, no `package.json`:
     "ci": "github:eunadai/ci#v1"
   },
   "scripts": {
-    "postinstall": "local-checks setup",
-    "check:ci": "local-checks"
+    "prepare": "command -v local-checks >/dev/null && local-checks install || true"
   }
 }
 ```
 
-O `postinstall` instala o cspell e o dicionário pt-BR uma vez por `npm install`, pelo mesmo `dist/identifiers/package-lock.json` que a Action usa. Só esse passo precisa de rede. Depois, chame o `check:ci` no lint (`"lint": "eslint . && npm run check:ci"`) ou num pre-push. Para o pre-push, crie o `.githooks/pre-push` executável (`chmod +x`), versionado, e ligue uma vez por clone com `git config core.hooksPath .githooks`:
+É só isso: nenhum script nem hook versionado no repo. Num clone de desenvolvimento, o `prepare` roda a cada install e faz duas coisas:
+
+- **instala o cspell** e o dicionário pt-BR, pelo mesmo `dist/identifiers/package-lock.json` que a Action usa. Só esse passo precisa de rede: sem rede, ele só avisa, e o check roda depois de um `local-checks setup` que dê certo;
+- **liga o pre-push** na pasta de hooks do git (`.git/hooks/pre-push`, a mesma para todos os worktrees do clone). O hook só chama o `local-checks pre-push`, então uma correção do check chega pelo pacote, e o próximo install reescreve o hook. Se o clone já tem um `pre-push` de outra ferramenta, ele fica como está: o install avisa e diz a linha para chamar de lá (`node_modules/.bin/local-checks pre-push "$@"`).
+
+**Clone com `core.hooksPath` definido** (por exemplo `.githooks`, da receita antiga): o install não muda essa config e, por isso, não liga o hook, só avisa. Para ligar, tire a config em cada clone e o hook antigo do repo, e rode o install de novo:
 
 ```sh
-#!/bin/sh
-exec npm run --silent check:ci
+git config --unset core.hooksPath
+git rm .githooks/pre-push   # o hook versionado da receita antiga, num PR do repo
+npm install                 # ou pnpm install: o install liga o pre-push em .git/hooks
 ```
+
+O install nunca quebra: ele sai com `0` e não faz nada no CI (`CI` definido), fora da raiz de um work tree git (um `git archive`, um pacote dentro de `node_modules`) e numa pasta que o repo exclui (abaixo). Sem as devDependencies (`npm ci --omit=dev`, `pnpm install --prod`, `NODE_ENV=production`), o bin não existe: o `command -v` pula a chamada, em vez de o script sair com 127 e derrubar o install.
+
+O pre-push lê as refs que o git manda e confere **cada branch enviada**, pelo commit enviado e não pelo `HEAD` do checkout: `git push`, `git push origin HEAD:refs/heads/x`, um sha direto e outra branch dão o mesmo resultado que a Action daria no PR. A remoção de branch e as tags passam direto. Um checkout sem o bin (um worktree sem install) e um clone sem o cspell passam com aviso. O push é barrado quando um check reprova:
+
+- **o portão:** a contagem passa do limite. Num PR com a label `aprovado-nadai`, que daqui não dá para ver, envie com `LOCAL_CHECKS_SKIP_SIZE=1 git push`: só a contagem é pulada, o identifiers continua;
+- **o identifiers:** um identificador novo em português, quando o repo usa `block: true` no caller e diz o mesmo aqui (`"block": true`, abaixo). Sem isso, ele só avisa, como a Action.
+
+`git push --no-verify` pula o hook inteiro.
+
+O que é do repo fica na chave `localChecks` do `package.json`, opcional:
+
+```json
+{
+  "localChecks": {
+    "block": true,
+    "skipInstallIn": ["~/.canvas", "$CANVAS_ORIGEM", "$CANVAS_FERRAMENTA"]
+  }
+}
+```
+
+| Campo | O que faz |
+|---|---|
+| `block` | O identifiers reprova num achado, no pre-push e no `local-checks` sem `--block`. Use quando o caller do repo tem `block: true`. |
+| `skipInstallIn` | Pastas onde o install não faz nada, como a instalação que uma ferramenta faz de si mesma. `~` é a home; `$NOME` é uma variável de ambiente, e a entrada é ignorada quando a variável não existe. Uma subpasta de uma delas também conta. |
+
+Para rodar à mão ou no lint, um script como `"check:ci": "local-checks"` (`"lint": "eslint . && npm run check:ci"`).
 
 ```sh
 local-checks                       # os dois checks, contra origin/HEAD (ou origin/main)
 local-checks identifiers --block   # só o identifiers, reprovando como o block: true do caller
 local-checks portao --base origin/develop
+local-checks setup                 # instala o cspell (o install já faz isso)
 local-checks --help
 ```
 
@@ -334,7 +367,7 @@ local-checks --help
 | `identifiers`, `portao` | os dois | Quais checks rodar. |
 | `--base <ref>` | `origin/HEAD`, ou `origin/main` | A base do PR. |
 | `--head <ref>` | `HEAD` | O que vai para o PR. |
-| `--block` | desligado | O `identifiers` reprova num achado. Use se o caller do repo tem `block: true`. |
+| `--block` | desligado (ou `localChecks.block`) | O `identifiers` reprova num achado. Use se o caller do repo tem `block: true`. |
 
 O que o local não vê, e por isso pode diferir da Action:
 
