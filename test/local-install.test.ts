@@ -86,7 +86,7 @@ describe("local-checks install: quando não faz nada", () => {
     const root = clone({ localChecks: { skipInstalIn: [] } })
     const r = run(root)
     expect(r.setups).toBe(0)
-    expect(r.lines[0]).toMatch(/^local-checks install: nada a fazer \(«localChecks» inválido em .*package\.json/)
+    expect(r.lines[0]).toContain(`nada a fazer («localChecks» inválido em ${join(root, "package.json")}`)
   })
 })
 
@@ -141,7 +141,7 @@ describe("local-checks install: num clone de desenvolvimento", () => {
     const r = run(root)
     expect(git(root, "config", "--get", "core.hooksPath")).toBe(".githooks")
     expect(existsSync(hookFile(root))).toBe(false)
-    expect(r.lines[0]).toMatch(/^local-checks install: o core\.hooksPath é «\.githooks», e ele fica como está/)
+    expect(r.lines[0]).toContain("local-checks install: o core.hooksPath é «.githooks», e ele fica como está")
 
     mkdirSync(join(root, ".githooks"))
     writeFileSync(join(root, ".githooks", "pre-push"), '#!/bin/sh\nexec node_modules/.bin/local-checks pre-push "$@"\n')

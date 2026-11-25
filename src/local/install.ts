@@ -15,16 +15,18 @@ import { expandPath, PROJECT_KEY, readProjectConfig } from "./project.js"
 // The line that marks a hook as ours: an install only rewrites a pre-push that has it.
 export const HOOK_MARK = "# local-checks: gerado por «local-checks install»"
 
-export const HOOK = `#!/bin/sh
-${HOOK_MARK} (eunadai/ci). O próximo install reescreve este arquivo.
-# Confere cada branch enviada com os checks das Actions. Pular: git push --no-verify.
-bin=node_modules/.bin/local-checks
-if [ ! -x "$bin" ]; then
-  echo "pre-push: o local-checks não está instalado neste checkout (rode o install); o push não foi conferido." >&2
-  exit 0
-fi
-exec "$bin" pre-push "$@"
-`
+export const HOOK = [
+  "#!/bin/sh",
+  `${HOOK_MARK} (eunadai/ci). O próximo install reescreve este arquivo.`,
+  "# Confere cada branch enviada com os checks das Actions. Pular: git push --no-verify.",
+  "bin=node_modules/.bin/local-checks",
+  'if [ ! -x "$bin" ]; then',
+  '  echo "pre-push: o local-checks não está instalado neste checkout (rode o install); o push não foi conferido." >&2',
+  "  exit 0",
+  "fi",
+  'exec "$bin" pre-push "$@"',
+  "",
+].join("\n")
 
 // A pre-push that already runs the check: ours, or a project's own hook that calls it.
 const runsCheck = (text: string): boolean => text.includes("local-checks pre-push")

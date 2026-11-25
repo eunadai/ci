@@ -24356,16 +24356,18 @@ var expandPath = (entry, root, env, home = homedir()) => {
 
 // src/local/install.ts
 var HOOK_MARK = "# local-checks: gerado por \xABlocal-checks install\xBB";
-var HOOK = `#!/bin/sh
-${HOOK_MARK} (eunadai/ci). O pr\xF3ximo install reescreve este arquivo.
-# Confere cada branch enviada com os checks das Actions. Pular: git push --no-verify.
-bin=node_modules/.bin/local-checks
-if [ ! -x "$bin" ]; then
-  echo "pre-push: o local-checks n\xE3o est\xE1 instalado neste checkout (rode o install); o push n\xE3o foi conferido." >&2
-  exit 0
-fi
-exec "$bin" pre-push "$@"
-`;
+var HOOK = [
+  "#!/bin/sh",
+  `${HOOK_MARK} (eunadai/ci). O pr\xF3ximo install reescreve este arquivo.`,
+  "# Confere cada branch enviada com os checks das Actions. Pular: git push --no-verify.",
+  "bin=node_modules/.bin/local-checks",
+  'if [ ! -x "$bin" ]; then',
+  '  echo "pre-push: o local-checks n\xE3o est\xE1 instalado neste checkout (rode o install); o push n\xE3o foi conferido." >&2',
+  "  exit 0",
+  "fi",
+  'exec "$bin" pre-push "$@"',
+  ""
+].join("\n");
 var runsCheck = (text) => text.includes("local-checks pre-push");
 var real = (path) => {
   try {
