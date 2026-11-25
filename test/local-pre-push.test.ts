@@ -4,7 +4,7 @@
 // identifiers check is the "not installed" case: a warning, never a block.
 import { describe, expect, it } from "@effect/vitest"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -206,6 +206,74 @@ describe("o pre-push confere o que está sendo enviado, não o HEAD", () => {
     const r = p.push("big")
     expect(r.status).toBe(0)
     expect(r.out).toContain("pre-push: o local-checks não está instalado neste checkout")
+  })
+})
+
+// The hook is one file for every worktree of a clone, and it calls the bin of the worktree that pushes.
+// A worktree whose node_modules still has the v1.10.0 bin (no `pre-push`) must not be blocked by it.
+describe("um worktree com o bin antigo (sem o pre-push)", () => {
+  // What the v1.10.0 bin does with `pre-push`: it reads the word as a check name, prints this, exits 2.
+  const oldBin = (exit: number, message: string) =>
+    ["#!/bin/sh", `echo ${JSON.stringify(message)} >&2`, `exit ${exit}`, ""].join("\n")
+  const OLD_MESSAGE = "local-checks: check desconhecido: pre-push, origin, /remote\n\nuso: local-checks [identifiers] [portao]"
+
+  // A second worktree of the project, with its own node_modules/.bin/local-checks.
+  const secondWorktree = (p: ReturnType<typeof wired>, bin: string) => {
+    const wt = join(temp(), "wt")
+    p.git("worktree", "add", "-q", wt, "big")
+    mkdirSync(join(wt, "node_modules", ".bin"), { recursive: true })
+    const file = join(wt, "node_modules", ".bin", "local-checks")
+    writeFileSync(file, bin)
+    chmodSync(file, 0o755)
+    return { wt, push: (args: string) => sh(wt, `git push origin ${args}`) }
+  }
+
+  it("deixa o push passar com aviso, e o worktree novo do mesmo clone continua barrando", () => {
+    const p = wired()
+    const old = secondWorktree(p, oldBin(2, OLD_MESSAGE))
+    expect(existsSync(join(old.wt, ".git"))).toBe(true)
+    // One hook for both worktrees.
+    expect(sh(old.wt, "git rev-parse --git-path hooks/pre-push").out.trim()).toContain(p.hook.replace(/\/pre-push$/, ""))
+
+    const fromOld = old.push("big")
+    expect(fromOld.status).toBe(0)
+    expect(fromOld.stderr).toContain("o local-checks deste checkout é antigo e não tem o pre-push")
+    expect(fromOld.stderr).toContain("rode o install para ligar o check")
+    expect(fromOld.stderr).not.toContain("check desconhecido")
+    expect(p.onRemote("big")).toBe(true)
+
+    // The same hook, the new bin, a diff over the limit: blocked.
+    const fromNew = p.push("big:refs/heads/big-new")
+    expect(fromNew.status).not.toBe(0)
+    expect(fromNew.out).toContain("O PR soma 50 linhas de lógica, acima do limite de 10.")
+    expect(p.onRemote("big-new")).toBe(false)
+  })
+
+  it("qualquer outra falha do bin continua barrando, com a saída dele", () => {
+    const p = wired()
+    for (const [exit, message] of [[2, "local-checks: check desconhecido: portao"], [1, "boom"], [127, "node: not found"]] as const) {
+      const wt = secondWorktree(p, oldBin(exit, message))
+      const r = wt.push("big:refs/heads/x")
+      // git push reports its own code when a hook fails; the bin's output is what shows the cause.
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain(message)
+      expect(r.stderr).not.toContain("não tem o pre-push")
+      expect(p.onRemote("x")).toBe(false)
+      p.git("worktree", "remove", "--force", wt.wt)
+    }
+  })
+
+  it("o bin de verdade da v1.10.0 também passa, e o hook guarda o stdin para o bin novo", () => {
+    // Only when this clone has the tag: CI may check out without tags.
+    const tag = spawnSync("git", ["show", "v1.10.0:dist/local-checks.mjs"], { cwd: dirname(BIN), encoding: "utf8" })
+    if (tag.status !== 0) return
+    const p = wired()
+    const old = secondWorktree(p, tag.stdout)
+    const r = old.push("big:refs/heads/by-v1-10")
+    expect(r.status).toBe(0)
+    expect(r.stderr).toContain("não tem o pre-push")
+    // The probe took no stdin from the new bin: it still read the refs and blocked.
+    expect(p.push("big:refs/heads/by-new").status).not.toBe(0)
   })
 })
 
