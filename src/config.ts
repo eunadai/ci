@@ -26,6 +26,14 @@ export const decodeConfig = (u: unknown): Effect.Effect<Config, ConfigInvalida> 
     Effect.mapError((erro) => new ConfigInvalida({ mensagem: `.github/portao.json inválido: ${erro.message}` })),
   )
 
+// .github/portao.json as text, as the base has it: from the API (github.ts) or from `git show` (the
+// local command). Both read it here, so a broken config fails with the same message in both.
+export const parseConfig = (texto: string): Effect.Effect<Config, ConfigInvalida> =>
+  Effect.try({
+    try: () => JSON.parse(texto) as unknown,
+    catch: () => new ConfigInvalida({ mensagem: ".github/portao.json no base não é JSON válido" }),
+  }).pipe(Effect.flatMap(decodeConfig))
+
 export const LABEL_APROVADO_PADRAO = "aprovado-nadai"
 
 export type Contar = NonNullable<NonNullable<Config["tamanho"]>["contar"]>

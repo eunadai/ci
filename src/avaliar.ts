@@ -39,7 +39,8 @@ export interface Resultado {
 const caminhos = (a: Arquivo): ReadonlyArray<string> =>
   a.previous_filename === undefined ? [a.filename] : [a.filename, a.previous_filename]
 
-const falha = (motivo: string): Resultado => ({
+// A verdict with no count: the gate could not judge the PR, and says why.
+export const falha = (motivo: string): Resultado => ({
   ok: false, motivos: [motivo], contados: [], aprovado: false, tipo: "normal", sensiveis: [],
 })
 

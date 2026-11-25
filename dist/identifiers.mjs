@@ -1877,10 +1877,10 @@ var cacheKeys = /* @__PURE__ */ new Set();
 var ReferenceTypeId = "~effect/Context/Reference";
 var TypeId3 = "~effect/Context";
 var FlattenAfterBaseHits = 8;
-var makeImpl = (cacheRoot, base2, overlay, depth, maxDepth) => {
+var makeImpl = (cacheRoot, base, overlay, depth, maxDepth) => {
   const self = Object.create(Proto);
   self.cacheRoot = cacheRoot ?? self;
-  self.base = base2;
+  self.base = base;
   self.overlay = overlay;
   self.depth = depth;
   self._flat = void 0;
@@ -7813,8 +7813,8 @@ var minDuration = (results2) => {
   }
   return min6;
 };
-var exponential = (base2, factor = 2) => {
-  const baseMillis = toMillis(fromInputUnsafe(base2));
+var exponential = (base, factor = 2) => {
+  const baseMillis = toMillis(fromInputUnsafe(base));
   return fromStepWithMetadata(succeed3((meta) => {
     const duration2 = millis(baseMillis * Math.pow(factor, meta.attempt - 1));
     return succeed3([duration2, duration2]);
@@ -9334,33 +9334,33 @@ var fromString = (s) => {
   if (s === "") {
     return some2(zero2);
   }
-  let base2;
+  let base;
   let exp;
   const seperator = s.search(/[eE]/);
   if (seperator !== -1) {
     const trail = s.slice(seperator + 1);
-    base2 = s.slice(0, seperator);
+    base = s.slice(0, seperator);
     exp = Number(trail);
-    if (base2 === "" || !Number.isSafeInteger(exp) || !FINITE_INT_REGEXP.test(trail)) {
+    if (base === "" || !Number.isSafeInteger(exp) || !FINITE_INT_REGEXP.test(trail)) {
       return none2();
     }
   } else {
-    base2 = s;
+    base = s;
     exp = 0;
   }
   let digits;
   let offset;
-  const dot = base2.search(/\./);
+  const dot = base.search(/\./);
   if (dot !== -1) {
-    const lead = base2.slice(0, dot);
-    const trail = base2.slice(dot + 1);
+    const lead = base.slice(0, dot);
+    const trail = base.slice(dot + 1);
     if (!/^\d*$/.test(trail)) {
       return none2();
     }
     digits = `${lead}${trail}`;
     offset = trail.length;
   } else {
-    digits = base2;
+    digits = base;
     offset = 0;
   }
   if (!FINITE_INT_REGEXP.test(digits)) {
@@ -11830,14 +11830,14 @@ var PublicKeyProto3 = /* @__PURE__ */ redactedProto(PublicKeyTypeId3, "Signature
 var isPrivateKey3 = (u) => hasProperty(u, PrivateKeyTypeId3);
 var isPublicKey3 = (u) => hasProperty(u, PublicKeyTypeId3);
 var specOf3 = (algorithm) => {
-  const base2 = {
+  const base = {
     privateUsages: ["sign"],
     publicUsages: ["verify"]
   };
   switch (algorithm._tag) {
     case "Ed25519":
       return {
-        ...base2,
+        ...base,
         name: "Ed25519",
         importParams: {
           name: "Ed25519"
@@ -11847,7 +11847,7 @@ var specOf3 = (algorithm) => {
       };
     case "Ecdsa":
       return {
-        ...base2,
+        ...base,
         name: "ECDSA",
         importParams: {
           name: "ECDSA",
@@ -11861,7 +11861,7 @@ var specOf3 = (algorithm) => {
     case "RsaPkcs1v15": {
       const name = algorithm._tag === "RsaPss" ? "RSA-PSS" : "RSASSA-PKCS1-v1_5";
       return {
-        ...base2,
+        ...base,
         name,
         importParams: {
           name,
@@ -16979,12 +16979,12 @@ function compileField(ast, compile2) {
   const parser = compile2(ast);
   return ast.context?.constructorDefault === void 0 ? parser : withDefault2(ast, parser);
 }
-function compile(ast, compile2, compileField2, base2, specialize) {
+function compile(ast, compile2, compileField2, base, specialize) {
   if (ast._tag === "Declaration") {
     for (const parameter of ast.typeParameters) compile2(parameter);
   }
   const descriptor = compileField2 ? getConstructorDescriptor(ast) : void 0;
-  const parser = descriptor ? makeConstructorParser(descriptor, compile2) : base2 ?? ast.getParser(compile2, compileField2);
+  const parser = descriptor ? makeConstructorParser(descriptor, compile2) : base ?? ast.getParser(compile2, compileField2);
   const checks = ast.checks;
   const links = ast.encoding;
   const transformations = links?.map((link2) => compileTransformation(link2.transformation));
@@ -17730,12 +17730,12 @@ function runConverter(adapter, options3, use) {
   }
 }
 var ROOT_URI = "https://effect.invalid/.json-schema/";
-function resolveUrl(value3, base2) {
-  return URL.canParse(value3, base2) ? new URL(value3, base2) : void 0;
+function resolveUrl(value3, base) {
+  return URL.canParse(value3, base) ? new URL(value3, base) : void 0;
 }
-function resolveResourceUri(value3, base2) {
+function resolveResourceUri(value3, base) {
   if (typeof value3 !== "string") return void 0;
-  const url = resolveUrl(value3, base2);
+  const url = resolveUrl(value3, base);
   if (url === void 0) return void 0;
   url.hash = "";
   return url.href;
@@ -18342,17 +18342,17 @@ function appendJsonSchema(left, right, inlineCheck) {
     const extracted = extractJsonSchemaNumberType(right);
     if (extracted.type !== void 0) {
       const type = leftType === "integer" || extracted.type === "integer" ? "integer" : "number";
-      const base2 = {
+      const base = {
         ...left,
         type
       };
-      if (isNumberEncoding) delete base2.anyOf;
+      if (isNumberEncoding) delete base.anyOf;
       const extractedKeys = Object.keys(extracted.schema);
-      if (extractedKeys.length === 0) return base2;
-      return hasOnlyKeywords(extracted.schema, promotableAnnotationKeywords) && hasNoCollisions(base2, extractedKeys) ? {
-        ...base2,
+      if (extractedKeys.length === 0) return base;
+      return hasOnlyKeywords(extracted.schema, promotableAnnotationKeywords) && hasNoCollisions(base, extractedKeys) ? {
+        ...base,
         ...extracted.schema
-      } : appendJsonSchema(base2, extracted.schema, inlineCheck);
+      } : appendJsonSchema(base, extracted.schema, inlineCheck);
     }
   }
   if (inlineCheck) {
@@ -26623,18 +26623,18 @@ var make31 = (url, params2, hash2) => try_({
 });
 var baseUrl = () => {
   if ("location" in globalThis && globalThis.location !== void 0 && globalThis.location.origin !== void 0 && globalThis.location.pathname !== void 0) {
-    const base2 = location.origin + location.pathname;
+    const base = location.origin + location.pathname;
     try {
-      return new URL(base2).href;
+      return new URL(base).href;
     } catch {
       return void 0;
     }
   }
   return void 0;
 };
-var fromString6 = (url, base2) => try_({
-  try: () => new URL(url, base2),
-  catch: () => new IllegalArgumentError2(`Invalid URL: "${url}"${base2 !== void 0 ? ` with base "${base2}"` : ""}`)
+var fromString6 = (url, base) => try_({
+  try: () => new URL(url, base),
+  catch: () => new IllegalArgumentError2(`Invalid URL: "${url}"${base !== void 0 ? ` with base "${base}"` : ""}`)
 });
 
 // node_modules/effect/dist/http/HttpClientRequest.js
@@ -27827,9 +27827,7 @@ var fetch = /* @__PURE__ */ make33((request3, url, signal, fiber3) => {
 var layer = /* @__PURE__ */ layerMergedContext(/* @__PURE__ */ succeed6(fetch));
 
 // src/identifiers/main.ts
-import { spawnSync as spawnSync2 } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { join as join2 } from "node:path";
 
 // src/config.ts
 var Config = Schema_exports.Struct({
@@ -27853,6 +27851,10 @@ var ConfigInvalida = class extends Data_exports.TaggedError("ConfigInvalida") {
 var decodeConfig = (u) => Schema_exports.decodeUnknownEffect(Config, { onExcessProperty: "error" })(u).pipe(
   Effect_exports.mapError((erro) => new ConfigInvalida({ mensagem: `.github/portao.json inv\xE1lido: ${erro.message}` }))
 );
+var parseConfig = (texto) => Effect_exports.try({
+  try: () => JSON.parse(texto),
+  catch: () => new ConfigInvalida({ mensagem: ".github/portao.json no base n\xE3o \xE9 JSON v\xE1lido" })
+}).pipe(Effect_exports.flatMap(decodeConfig));
 
 // src/glob.ts
 var globParaRegex = (glob) => {
@@ -27929,14 +27931,14 @@ var githubLive = (acesso) => Layer_exports.effect(
     const http = yield* HttpClient_exports.HttpClient;
     const marcador = acesso.marcador ?? MARCADOR;
     const pedir = (metodo, caminho, corpo, token = acesso.token) => {
-      const base2 = HttpClientRequest_exports.make(metodo)(`${acesso.api}${caminho}`).pipe(
+      const base = HttpClientRequest_exports.make(metodo)(`${acesso.api}${caminho}`).pipe(
         HttpClientRequest_exports.setHeaders({
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28"
         }),
         HttpClientRequest_exports.bearerToken(token)
       );
-      const request3 = corpo === void 0 ? base2 : HttpClientRequest_exports.bodyJsonUnsafe(base2, corpo);
+      const request3 = corpo === void 0 ? base : HttpClientRequest_exports.bodyJsonUnsafe(base, corpo);
       const falhou = (detalhe, status) => new ErroApi({ mensagem: `${metodo} ${caminho} ${detalhe}`, ...status === void 0 ? {} : { status } });
       const attempt2 = http.execute(request3).pipe(
         Effect_exports.mapError((e) => falhou(`falhou: ${e.message}`)),
@@ -28016,13 +28018,7 @@ var githubLive = (acesso) => Layer_exports.effect(
             ),
             onSome: (j) => Schema_exports.decodeUnknownEffect(Conteudo)(j).pipe(
               Effect_exports.mapError((e) => new ErroApi({ mensagem: `GET ${caminho} devolveu um formato inesperado: ${e.message}` })),
-              Effect_exports.flatMap(
-                ({ content }) => Effect_exports.try({
-                  try: () => JSON.parse(Buffer.from(content, "base64").toString("utf8")),
-                  catch: () => new ConfigInvalida({ mensagem: ".github/portao.json no base n\xE3o \xE9 JSON v\xE1lido" })
-                })
-              ),
-              Effect_exports.flatMap(decodeConfig),
+              Effect_exports.flatMap(({ content }) => parseConfig(Buffer.from(content, "base64").toString("utf8"))),
               Effect_exports.map(Option_exports.some)
             )
           }))
@@ -28050,9 +28046,12 @@ var githubLive = (acesso) => Layer_exports.effect(
   })
 );
 
-// src/comando.ts
-var escaparDado = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-var escaparPropriedade = (s) => escaparDado(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
+// src/identifiers/checkout.ts
+import { spawnSync as spawnSync2 } from "node:child_process";
+import { join as join2 } from "node:path";
+
+// src/identifiers/base.ts
+import { spawnSync } from "node:child_process";
 
 // src/identifiers/extract.ts
 var CONFIG_PATH = ".github/identifiers.json";
@@ -28242,6 +28241,25 @@ var occurrences = (diff, ignore4) => {
 };
 var normalize3 = (w) => w.normalize("NFD").replace(new RegExp("\\p{M}", "gu"), "").toLowerCase();
 
+// src/identifiers/base.ts
+var git = (cwd, args2) => spawnSync("git", ["-c", "core.quotePath=false", ...args2], { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+var baseHits = (rev, identifiers, exclude, cwd) => {
+  const grep = git(cwd, ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), rev, "--", ...excludePathspecs(exclude)]);
+  if (grep.status !== 0 && grep.status !== 1) throw new Error(`git grep: ${grep.stderr.trim()}`);
+  const tree = git(cwd, ["ls-tree", "-r", "--name-only", rev]);
+  if (tree.status !== 0) throw new Error(`git ls-tree: ${tree.stderr.trim()}`);
+  const hits = [...parseGrep(grep.stdout, rev)];
+  for (const path of tree.stdout.split("\n")) {
+    for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path });
+  }
+  const wanted = new Set(identifiers);
+  return hits.filter((h) => wanted.has(h.identifier));
+};
+
+// src/comando.ts
+var escaparDado = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+var escaparPropriedade = (s) => escaparDado(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
+
 // src/identifiers/report.ts
 var passed = (r) => !r.block || r.findings.length === 0 && r.error === void 0;
 var count = (n) => n === 0 ? "nenhum identificador novo em portugu\xEAs" : n === 1 ? "1 identificador novo em portugu\xEAs" : `${n} identificadores novos em portugu\xEAs`;
@@ -28294,22 +28312,6 @@ var summary = (r, max6 = 100) => {
   }
   return `${parts2.join("\n\n")}
 `;
-};
-
-// src/identifiers/base.ts
-import { spawnSync } from "node:child_process";
-var git = (cwd, args2) => spawnSync("git", ["-c", "core.quotePath=false", ...args2], { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-var baseHits = (rev, identifiers, exclude, cwd) => {
-  const grep = git(cwd, ["grep", "-I", "-o", "-w", "-F", ...identifiers.flatMap((i) => ["-e", i]), rev, "--", ...excludePathspecs(exclude)]);
-  if (grep.status !== 0 && grep.status !== 1) throw new Error(`git grep: ${grep.stderr.trim()}`);
-  const tree = git(cwd, ["ls-tree", "-r", "--name-only", rev]);
-  if (tree.status !== 0) throw new Error(`git ls-tree: ${tree.stderr.trim()}`);
-  const hits = [...parseGrep(grep.stdout, rev)];
-  for (const path of tree.stdout.split("\n")) {
-    for (const segment of path.split("/")) hits.push({ identifier: segment.replace(/\..*$/, ""), file: path });
-  }
-  const wanted = new Set(identifiers);
-  return hits.filter((h) => wanted.has(h.identifier));
 };
 
 // src/identifiers/program.ts
@@ -28371,21 +28373,19 @@ var program = (env2) => Effect_exports.gen(function* () {
   return { ok: ok2 && !noPermission };
 });
 
-// src/identifiers/main.ts
-var env = process.env;
-var base = env.BASE_SHA ?? "";
-var head5 = env.HEAD_SHA ?? "";
-var cspellDir = env.CSPELL_DIR ?? "";
-var run3 = (cmd, args2, input) => spawnSync2(cmd, args2, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-var git2 = (...args2) => {
-  const r = run3("git", args2);
+// src/identifiers/checkout.ts
+var run3 = (cmd, args2, input, cwd) => spawnSync2(cmd, args2, { input, cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+var gitAt = (cwd, args2) => {
+  const r = run3("git", args2, void 0, cwd);
   if (r.status !== 0) throw new Error(`git ${args2[0]}: ${r.stderr.trim()}`);
   return r.stdout;
 };
-var unknown2 = (config, words) => Effect_exports.try({
+var git2 = (...args2) => gitAt(void 0, args2);
+var cspellBin = (cspellDir) => join2(cspellDir, "node_modules/.bin/cspell");
+var unknown2 = (cspellDir, config, words) => Effect_exports.try({
   try: () => {
     if (words.length === 0) return /* @__PURE__ */ new Set();
-    const r = run3(join2(cspellDir, "node_modules/.bin/cspell"), [
+    const r = run3(cspellBin(cspellDir), [
       "--no-progress",
       "--no-summary",
       "--no-color",
@@ -28400,8 +28400,30 @@ var unknown2 = (config, words) => Effect_exports.try({
   },
   catch: (e) => new CheckError({ message: `o cspell falhou: ${e instanceof Error ? e.message : String(e)}` })
 });
-var mergeBase = git2("merge-base", base, head5).trim();
-var configOnBase = run3("git", ["show", `${base}:${CONFIG_PATH}`]);
+var fromCheckout = (base, head6, cspellDir) => {
+  const mergeBase = git2("merge-base", base, head6).trim();
+  const configOnBase = run3("git", ["show", `${base}:${CONFIG_PATH}`]);
+  return {
+    diff: git2("diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", mergeBase, head6),
+    config: configOnBase.status === 0 ? configOnBase.stdout : void 0,
+    // Portuguese: unknown in English (with the software terms), then known in pt-BR.
+    portuguese: (words) => unknown2(cspellDir, "en.json", words).pipe(
+      Effect_exports.flatMap(
+        (notEnglish) => unknown2(cspellDir, "pt-br.json", [...notEnglish]).pipe(
+          Effect_exports.map((notPortuguese) => new Set([...notEnglish].filter((w) => !notPortuguese.has(w))))
+        )
+      )
+    ),
+    inBase: (identifiers, exclude) => Effect_exports.try({
+      try: () => baseHits(mergeBase, identifiers, exclude),
+      catch: (e) => new CheckError({ message: `n\xE3o consegui ler a base: ${e instanceof Error ? e.message : String(e)}` })
+    })
+  };
+};
+
+// src/identifiers/main.ts
+var env = process.env;
+var head5 = env.HEAD_SHA ?? "";
 var layer2 = githubLive({
   api: env.GITHUB_API_URL ?? "https://api.github.com",
   repo: env.GITHUB_REPOSITORY ?? "",
@@ -28414,20 +28436,7 @@ var { ok } = await Effect_exports.runPromise(
     headSha: head5,
     fork: env.FORK === "true",
     runUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY ?? ""}/actions/runs/${env.GITHUB_RUN_ID ?? ""}`,
-    diff: git2("diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", mergeBase, head5),
-    config: configOnBase.status === 0 ? configOnBase.stdout : void 0,
-    // Portuguese: unknown in English (with the software terms), then known in pt-BR.
-    portuguese: (words) => unknown2("en.json", words).pipe(
-      Effect_exports.flatMap(
-        (notEnglish) => unknown2("pt-br.json", [...notEnglish]).pipe(
-          Effect_exports.map((notPortuguese) => new Set([...notEnglish].filter((w) => !notPortuguese.has(w))))
-        )
-      )
-    ),
-    inBase: (identifiers, exclude) => Effect_exports.try({
-      try: () => baseHits(mergeBase, identifiers, exclude),
-      catch: (e) => new CheckError({ message: `n\xE3o consegui ler a base: ${e instanceof Error ? e.message : String(e)}` })
-    }),
+    ...fromCheckout(env.BASE_SHA ?? "", head5, env.CSPELL_DIR ?? ""),
     log: (line) => console.log(line),
     appendSummary: (text2) => {
       if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, text2);

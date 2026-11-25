@@ -1,7 +1,11 @@
 {
   "name": "ci",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "local-checks": "dist/local-checks.mjs"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
