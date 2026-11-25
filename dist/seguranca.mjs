@@ -27852,6 +27852,10 @@ var ConfigInvalida = class extends Data_exports.TaggedError("ConfigInvalida") {
 var decodeConfig = (u) => Schema_exports.decodeUnknownEffect(Config, { onExcessProperty: "error" })(u).pipe(
   Effect_exports.mapError((erro2) => new ConfigInvalida({ mensagem: `.github/portao.json inv\xE1lido: ${erro2.message}` }))
 );
+var parseConfig = (texto) => Effect_exports.try({
+  try: () => JSON.parse(texto),
+  catch: () => new ConfigInvalida({ mensagem: ".github/portao.json no base n\xE3o \xE9 JSON v\xE1lido" })
+}).pipe(Effect_exports.flatMap(decodeConfig));
 
 // src/avaliar.ts
 var MAX_ARQUIVOS_API = 3e3;
@@ -27983,13 +27987,7 @@ var githubLive = (acesso) => Layer_exports.effect(
             ),
             onSome: (j) => Schema_exports.decodeUnknownEffect(Conteudo)(j).pipe(
               Effect_exports.mapError((e) => new ErroApi({ mensagem: `GET ${caminho} devolveu um formato inesperado: ${e.message}` })),
-              Effect_exports.flatMap(
-                ({ content }) => Effect_exports.try({
-                  try: () => JSON.parse(Buffer.from(content, "base64").toString("utf8")),
-                  catch: () => new ConfigInvalida({ mensagem: ".github/portao.json no base n\xE3o \xE9 JSON v\xE1lido" })
-                })
-              ),
-              Effect_exports.flatMap(decodeConfig),
+              Effect_exports.flatMap(({ content }) => parseConfig(Buffer.from(content, "base64").toString("utf8"))),
               Effect_exports.map(Option_exports.some)
             )
           }))

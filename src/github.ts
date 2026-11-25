@@ -1,7 +1,7 @@
 import { Context, Data, Effect, Layer, Option, Schedule, Schema } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/http"
 import { type Arquivo, MAX_ARQUIVOS_API } from "./avaliar.js"
-import { type Config, ConfigInvalida, decodeConfig } from "./config.js"
+import { type Config, type ConfigInvalida, parseConfig } from "./config.js"
 
 // Hidden marker that identifies the gate's own comment, so it is edited and never duplicated.
 export const MARCADOR = "<!-- portao:nadairafael/ci -->"
@@ -199,13 +199,7 @@ export const githubLive = (acesso: Acesso): Layer.Layer<GitHub, never, HttpClien
               onSome: (j) =>
                 Schema.decodeUnknownEffect(Conteudo)(j).pipe(
                   Effect.mapError((e) => new ErroApi({ mensagem: `GET ${caminho} devolveu um formato inesperado: ${e.message}` })),
-                  Effect.flatMap(({ content }) =>
-                    Effect.try({
-                      try: () => JSON.parse(Buffer.from(content, "base64").toString("utf8")) as unknown,
-                      catch: () => new ConfigInvalida({ mensagem: ".github/portao.json no base não é JSON válido" }),
-                    })
-                  ),
-                  Effect.flatMap(decodeConfig),
+                  Effect.flatMap(({ content }) => parseConfig(Buffer.from(content, "base64").toString("utf8"))),
                   Effect.map(Option.some),
                 ),
             })),

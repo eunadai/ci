@@ -271,7 +271,7 @@ jobs:
     #   block: true
 ```
 
-Comece só avisando. Quando a lista de palavras do projeto estabilizar, ligue `block: true` e exija o contexto **`identifiers`** num ruleset.
+Comece só avisando. Quando a lista de palavras do projeto estabilizar, ligue `block: true` e exija o contexto **`identifiers`** num ruleset. Para pegar o achado antes do push, veja [Checks locais](#checks-locais-antes-do-push-local-checks).
 
 | Input | Padrão | O que faz |
 |---|---|---|
@@ -296,6 +296,54 @@ Opcional, e lido do **branch base** do PR: um PR não consegue liberar as própr
 | `ignore` | Globs que não são conferidos, somados ao padrão. Também ficam fora da busca de legado na base. Um glob que nunca casa com um caminho (absoluto, com pasta vazia como em `lib/`, com `.` ou `..`) dá um aviso, sem mudar o resultado. |
 
 O cspell (10.4.0) e o dicionário pt-BR são fixos pelo `dist/identifiers/package-lock.json`, com hash de integridade, e sobem por PR aqui. Um run de PR leva poucos segundos depois da instalação.
+
+## Checks locais, antes do push (`local-checks`)
+
+O `identifiers` e a contagem do portão também rodam no clone, sem token do GitHub e sem rede. O `local-checks` compara a branch com a base do mesmo jeito que as Actions comparam o PR: do merge base ao head, com o `.github/identifiers.json` e o `.github/portao.json` lidos da base. Ele imprime o mesmo summary que a Action escreveria e sai com `1` quando um check reprova. Assim o erro aparece antes do push, e não depois de mais uma volta de CI.
+
+Ligar num repo, no `package.json`:
+
+```json
+{
+  "devDependencies": {
+    "ci": "github:eunadai/ci#v1"
+  },
+  "scripts": {
+    "postinstall": "local-checks setup",
+    "check:ci": "local-checks"
+  }
+}
+```
+
+O `postinstall` instala o cspell e o dicionário pt-BR uma vez por `npm install`, pelo mesmo `dist/identifiers/package-lock.json` que a Action usa. Só esse passo precisa de rede. Depois, chame o `check:ci` no lint (`"lint": "eslint . && npm run check:ci"`) ou num pre-push. Para o pre-push, crie o `.githooks/pre-push` executável (`chmod +x`), versionado, e ligue uma vez por clone com `git config core.hooksPath .githooks`:
+
+```sh
+#!/bin/sh
+exec npm run --silent check:ci
+```
+
+```sh
+local-checks                       # os dois checks, contra origin/HEAD (ou origin/main)
+local-checks identifiers --block   # só o identifiers, reprovando como o block: true do caller
+local-checks portao --base origin/develop
+local-checks --help
+```
+
+| Opção | Padrão | O que faz |
+|---|---|---|
+| `identifiers`, `portao` | os dois | Quais checks rodar. |
+| `--base <ref>` | `origin/HEAD`, ou `origin/main` | A base do PR. |
+| `--head <ref>` | `HEAD` | O que vai para o PR. |
+| `--block` | desligado | O `identifiers` reprova num achado. Use se o caller do repo tem `block: true`. |
+
+O que o local não vê, e por isso pode diferir da Action:
+
+- **o que não foi commitado:** só conta o que está no `--head`, como no PR;
+- **a base desatualizada:** sem rede, a base é o `origin/main` do último `git fetch`;
+- **as labels e o autor do PR:** a label de aprovação nunca libera o limite, e o `isento` nunca vale. Quando o limite estoura, o comando lembra da label;
+- **a versão:** o `package-lock.json` do repo fixa o commit da `v1` instalada. Quando a `v1` andar, `npm install -D github:eunadai/ci#v1` traz a nova.
+
+Num clone deste repo, o mesmo comando roda sem instalar nada no projeto: `npm ci --prefix dist/identifiers` uma vez, e depois `node <clone>/dist/local-checks.mjs` na pasta do projeto. Para usar outro cspell, aponte `CSPELL_DIR` para a pasta dele.
 
 ## Clones locais em dia (`scripts/repo-sync.sh`)
 
@@ -323,7 +371,7 @@ A lista de repos fica fora deste repo, em `~/.config/repo-sync/repos` (ou `REPO_
 npm ci
 npm test            # vitest + @effect/vitest
 npm run typecheck
-npm run build       # gera dist/portao.mjs, dist/seguranca.mjs e dist/identifiers.mjs (commitados)
+npm run build       # gera dist/portao.mjs, dist/seguranca.mjs, dist/identifiers.mjs e dist/local-checks.mjs (commitados)
 ```
 
 O `dist/` é commitado, e o CI falha se ele estiver desatualizado em relação a `src/`.
