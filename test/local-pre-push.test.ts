@@ -249,7 +249,7 @@ describe("um worktree com o bin antigo (sem o pre-push)", () => {
     expect(p.onRemote("big-new")).toBe(false)
   })
 
-  it("qualquer outra falha do bin continua barrando, com a saída e o exit code dele", () => {
+  it("qualquer outra falha do bin continua barrando, com a saída dele", () => {
     const p = wired()
     for (const [exit, message] of [[2, "local-checks: check desconhecido: portao"], [1, "boom"], [127, "node: not found"]] as const) {
       const wt = secondWorktree(p, oldBin(exit, message))
