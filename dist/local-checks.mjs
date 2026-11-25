@@ -4462,7 +4462,7 @@ var makeCachedUnsafe = (self, ttlMillis) => {
   let expiresAt = 0;
   let exit3;
   let current;
-  const join3 = (fiber3, run4) => {
+  const join5 = (fiber3, run4) => {
     run4.awaiters++;
     onExitUnsafe(fiber3, () => {
       if (--run4.awaiters > 0 || run4.done) return;
@@ -4473,7 +4473,7 @@ var makeCachedUnsafe = (self, ttlMillis) => {
   };
   return [withFiber((fiber3) => {
     if (current !== void 0) {
-      return fiber3 === current.fiber ? fiberJoin(current.fiber) : join3(fiber3, current);
+      return fiber3 === current.fiber ? fiberJoin(current.fiber) : join5(fiber3, current);
     }
     if (exit3 !== void 0 && (expiresAt === Infinity || fiber3.getRef(ClockRef).currentTimeMillisUnsafe() < expiresAt)) {
       return exit3;
@@ -4486,7 +4486,7 @@ var makeCachedUnsafe = (self, ttlMillis) => {
       done: false
     };
     current = run4;
-    const joined = join3(fiber3, run4);
+    const joined = join5(fiber3, run4);
     run4.fiber.evaluate(onExitPrimitive(self, (exit_) => {
       run4.done = true;
       if (current !== run4) return;
@@ -4941,8 +4941,8 @@ var runPromiseExitWith = (context3) => {
   const runFork3 = runForkWith(context3);
   return (effect2, options) => {
     const fiber3 = runFork3(effect2, options);
-    return new Promise((resolve3) => {
-      fiber3.addObserver((exit3) => resolve3(exit3));
+    return new Promise((resolve5) => {
+      fiber3.addObserver((exit3) => resolve5(exit3));
     });
   };
 };
@@ -15134,10 +15134,10 @@ var InterpretedEntry = class {
 var CompilerEntry = class extends InterpretedEntry {
   compiled;
   resolve;
-  constructor(ast, compiled, resolve3) {
+  constructor(ast, compiled, resolve5) {
     super(ast);
     this.compiled = compiled;
-    this.resolve = resolve3;
+    this.resolve = resolve5;
   }
   save(key5, value3) {
     Object.defineProperty(this, key5, {
@@ -15189,8 +15189,8 @@ function withDecode(fastDecode, decodeEffect3) {
     return (detailed ??= decodeEffect3())(input, options);
   };
 }
-function lazyParser(resolve3, ast, operation) {
-  const entry = resolve3(ast);
+function lazyParser(resolve5, ast, operation) {
+  const entry = resolve5(ast);
   if (entry.compiled === void 0 || Object.hasOwn(entry, operation)) {
     return entry[operation];
   }
@@ -17299,9 +17299,9 @@ function toStandardSchemaV1(self, options) {
     if (exit3) {
       return makeStandardResult(exit3);
     }
-    return new Promise((resolve3) => {
+    return new Promise((resolve5) => {
       fiber3.addObserver((exit4) => {
-        resolve3(makeStandardResult(exit4));
+        resolve5(makeStandardResult(exit4));
       });
     });
   };
@@ -23719,9 +23719,9 @@ function resolveAnnotationsKey(schema) {
 }
 
 // src/local/main.ts
-import { spawnSync as spawnSync3 } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, join as join2 } from "node:path";
+import { spawnSync as spawnSync4 } from "node:child_process";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { dirname, join as join4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -24308,58 +24308,210 @@ var localGate = (i) => Effect_exports.gen(function* () {
   return { r, config };
 }).pipe(Effect_exports.catch((r) => Effect_exports.succeed({ r, config: void 0 })));
 
+// src/local/install.ts
+import { spawnSync as spawnSync3 } from "node:child_process";
+import { chmodSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, realpathSync, writeFileSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join3, resolve as resolve4, sep } from "node:path";
+
+// src/local/project.ts
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join as join2, resolve as resolve3 } from "node:path";
+var PROJECT_KEY = "localChecks";
+var ProjectConfig = Schema_exports.Struct({
+  // As the caller's `block: true`: a new Portuguese identifier fails the check, and so the push.
+  block: Schema_exports.optionalKey(Schema_exports.Boolean),
+  // Folders where `local-checks install` does nothing (a tool's own install of the repo, for
+  // example). `~` is the home folder; `$NAME` is an environment variable, and the entry is dropped
+  // when the variable is not set.
+  skipInstallIn: Schema_exports.optionalKey(Schema_exports.Array(Schema_exports.String))
+});
+var readProjectConfig = (root) => {
+  const file = join2(root, "package.json");
+  if (!existsSync(file)) return {};
+  let pkg;
+  try {
+    pkg = JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    throw new Error(`${file} n\xE3o \xE9 JSON v\xE1lido`);
+  }
+  const value3 = typeof pkg === "object" && pkg !== null ? pkg[PROJECT_KEY] : void 0;
+  if (value3 === void 0) return {};
+  return Effect_exports.runSync(
+    Schema_exports.decodeUnknownEffect(ProjectConfig, { onExcessProperty: "error" })(value3).pipe(
+      Effect_exports.mapError((e) => new Error(`\xAB${PROJECT_KEY}\xBB inv\xE1lido em ${file}: ${e.message}`))
+    )
+  );
+};
+var expandPath = (entry, root, env, home = homedir()) => {
+  const variable = /^\$(\w+)(.*)$/s.exec(entry);
+  if (variable !== null) {
+    const value3 = env[variable[1] ?? ""];
+    return value3 === void 0 || value3 === "" ? void 0 : resolve3(root, value3 + (variable[2] ?? ""));
+  }
+  if (entry === "~" || entry.startsWith("~/")) return join2(home, entry.slice(1));
+  return resolve3(root, entry);
+};
+
+// src/local/install.ts
+var HOOK_MARK = "# local-checks: gerado por \xABlocal-checks install\xBB";
+var HOOK = `#!/bin/sh
+${HOOK_MARK} (eunadai/ci). O pr\xF3ximo install reescreve este arquivo.
+# Confere cada branch enviada com os checks das Actions. Pular: git push --no-verify.
+bin=node_modules/.bin/local-checks
+if [ ! -x "$bin" ]; then
+  echo "pre-push: o local-checks n\xE3o est\xE1 instalado neste checkout (rode o install); o push n\xE3o foi conferido." >&2
+  exit 0
+fi
+exec "$bin" pre-push "$@"
+`;
+var runsCheck = (text) => text.includes("local-checks pre-push");
+var real = (path) => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve4(path);
+  }
+};
+var inside = (child, parent) => child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
+var git3 = (cwd, args2) => {
+  const r = spawnSync3("git", args2, { cwd, encoding: "utf8" });
+  return r.status === 0 ? r.stdout.trim() : void 0;
+};
+var isSet = (v) => v !== void 0 && v !== "" && v !== "0" && v.toLowerCase() !== "false";
+var skipReason = (ctx) => {
+  if (isSet(ctx.env.CI)) return "CI";
+  const folder = real(ctx.cwd);
+  const top = git3(folder, ["rev-parse", "--show-toplevel"]);
+  if (top === void 0) return "fora de um work tree git";
+  if (real(top) !== folder) return "n\xE3o \xE9 a raiz do work tree git";
+  let skipIn;
+  try {
+    skipIn = readProjectConfig(folder).skipInstallIn ?? [];
+  } catch (e) {
+    return `${e instanceof Error ? e.message : String(e)}; corrija o \xAB${PROJECT_KEY}\xBB e rode o install de novo`;
+  }
+  for (const entry of skipIn) {
+    const path = expandPath(entry, folder, ctx.env, ctx.home ?? homedir2());
+    if (path !== void 0 && inside(folder, real(path))) return `pasta em ${PROJECT_KEY}.skipInstallIn (${entry})`;
+  }
+  return void 0;
+};
+var wireHook = (root, log2) => {
+  const hooksPath = git3(root, ["config", "--get", "core.hooksPath"]) ?? "";
+  const call = `node_modules/.bin/local-checks pre-push "$@"`;
+  if (hooksPath !== "") {
+    const file2 = join3(resolve4(root, hooksPath.replace(/^~(?=$|\/)/, homedir2())), "pre-push");
+    if (existsSync2(file2) && runsCheck(readFileSync2(file2, "utf8"))) return void 0;
+    return `o core.hooksPath \xE9 \xAB${hooksPath}\xBB, e ele fica como est\xE1: o push n\xE3o \xE9 conferido. Chame \xAB${call}\xBB no pre-push de l\xE1, ou rode \xABgit config --unset core.hooksPath\xBB e o install de novo.`;
+  }
+  const common = git3(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  if (common === void 0) return "n\xE3o achei a pasta do git deste clone; o pre-push n\xE3o foi ligado.";
+  const file = join3(common, "hooks", "pre-push");
+  const current = existsSync2(file) ? readFileSync2(file, "utf8") : void 0;
+  if (current !== void 0 && !current.includes(HOOK_MARK)) {
+    if (runsCheck(current)) return void 0;
+    return `j\xE1 existe um pre-push em ${file}, que fica como est\xE1: o push n\xE3o \xE9 conferido. Chame \xAB${call}\xBB nele.`;
+  }
+  if (current !== HOOK) {
+    mkdirSync(join3(common, "hooks"), { recursive: true });
+    writeFileSync(file, HOOK);
+    log2(`local-checks install: pre-push ligado em ${file}.`);
+  }
+  chmodSync(file, 493);
+  return void 0;
+};
+var install = (ctx) => {
+  const warn = (text) => ctx.log(`local-checks install: ${text}`);
+  const reason = skipReason(ctx);
+  if (reason !== void 0) {
+    warn(`nada a fazer (${reason}).`);
+    return;
+  }
+  const root = real(ctx.cwd);
+  let status;
+  try {
+    status = ctx.setup();
+  } catch (e) {
+    warn(e instanceof Error ? e.message : String(e));
+    status = 1;
+  }
+  if (status !== 0) warn("o setup do cspell n\xE3o terminou (sem rede?). O identifiers n\xE3o roda at\xE9 \xABlocal-checks setup\xBB funcionar.");
+  try {
+    const problem = wireHook(root, ctx.log);
+    if (problem !== void 0) warn(problem);
+  } catch (e) {
+    warn(`n\xE3o consegui ligar o pre-push: ${e instanceof Error ? e.message : String(e)}`);
+  }
+};
+
+// src/local/push.ts
+var ZERO = /^0+$/;
+var branchesToCheck = (stdin) => stdin.split("\n").flatMap((line) => {
+  const [, localSha = "", remoteRef = ""] = line.trim().split(/\s+/);
+  if (!remoteRef.startsWith("refs/heads/") || localSha === "" || ZERO.test(localSha)) return [];
+  return [{ sha: localSha, branch: remoteRef.slice("refs/heads/".length) }];
+});
+
 // src/local/main.ts
+var SKIP_SIZE = "LOCAL_CHECKS_SKIP_SIZE";
 var USAGE = [
   "uso: local-checks [identifiers] [portao] [--base <ref>] [--head <ref>] [--block]",
   "     local-checks setup",
+  "     local-checks install",
+  "     local-checks pre-push <remoto> [<url>]   (l\xEA as refs do stdin, como o git manda)",
   "",
   "Sem check, roda os dois.",
   "--base: a base do PR (padr\xE3o: origin/HEAD, ou origin/main).",
   "--head: o que vai para o PR (padr\xE3o: HEAD). O que n\xE3o foi commitado n\xE3o conta.",
-  "--block: o identifiers reprova, como com o input block: true do caller.",
-  "setup: instala uma vez o cspell do lockfile (s\xF3 aqui precisa de rede)."
+  `--block: o identifiers reprova, como com o input block: true do caller (ou "${PROJECT_KEY}": { "block": true } no package.json).`,
+  "setup: instala uma vez o cspell do lockfile (s\xF3 aqui precisa de rede).",
+  "install: o que o script prepare do projeto chama. Num clone de desenvolvimento, roda o setup e liga o pre-push;",
+  "  no CI, fora da raiz de um work tree git ou numa pasta do skipInstallIn, n\xE3o faz nada. Sai sempre com 0.",
+  `pre-push: confere cada branch enviada. ${SKIP_SIZE}=1 pula a contagem do port\xE3o (PR com a label ${LABEL_APROVADO_PADRAO}).`
 ].join("\n");
 var CHECKS = ["identifiers", "portao"];
-var cspellDir = process.env.CSPELL_DIR || join2(dirname(fileURLToPath(import.meta.url)), "identifiers");
+var cspellDir = process.env.CSPELL_DIR || join4(dirname(fileURLToPath(import.meta.url)), "identifiers");
 var setupHint = `rode uma vez \xABlocal-checks setup\xBB (ou npm ci --prefix ${cspellDir})`;
 var Usage = class extends Error {
 };
-var git3 = (...args2) => gitAt(void 0, args2).trim();
+var git4 = (...args2) => gitAt(void 0, args2).trim();
 var commitOf = (ref) => {
   try {
-    return git3("rev-parse", "--verify", "--quiet", `${ref}^{commit}`);
+    return git4("rev-parse", "--verify", "--quiet", `${ref}^{commit}`);
   } catch {
     throw new Error(`a ref \xAB${ref}\xBB n\xE3o existe neste clone (passe --base ou --head, ou rode git fetch)`);
   }
 };
 var defaultBase = () => {
   try {
-    return git3("rev-parse", "--abbrev-ref", "origin/HEAD");
+    return git4("rev-parse", "--abbrev-ref", "origin/HEAD");
   } catch {
     return "origin/main";
   }
 };
 var setup = () => {
-  if (!existsSync(join2(cspellDir, "package-lock.json"))) throw new Usage(`n\xE3o achei o package-lock.json do cspell em ${cspellDir}`);
-  const r = spawnSync3("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: cspellDir, stdio: "inherit" });
+  if (!existsSync3(join4(cspellDir, "package-lock.json"))) throw new Usage(`n\xE3o achei o package-lock.json do cspell em ${cspellDir}`);
+  const r = spawnSync4("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: cspellDir, stdio: "inherit" });
   return r.status ?? 2;
 };
-var check3 = async (checks, baseRef, headRef, block) => {
-  process.chdir(git3("rev-parse", "--show-toplevel"));
+var check3 = async (checks, baseRef, headRef, o) => {
   const base = commitOf(baseRef);
   const head3 = commitOf(headRef);
-  const branch = headRef === "HEAD" ? git3("rev-parse", "--abbrev-ref", "HEAD") : headRef.replace(/^refs\/heads\//, "");
   console.log(`Base ${baseRef} (${base.slice(0, 7)}), head ${headRef} (${head3.slice(0, 7)}).
 `);
   let ok = true;
   if (checks.has("identifiers")) {
-    if (!existsSync(cspellBin(cspellDir))) {
-      console.log(`\u274C **Identificadores em ingl\xEAs:** n\xE3o rodou: o cspell n\xE3o est\xE1 instalado em ${cspellDir}: ${setupHint}.
+    if (!existsSync3(cspellBin(cspellDir))) {
+      const mark = o.cspellOptional ? "\u26A0\uFE0F" : "\u274C";
+      const tail = o.cspellOptional ? " O push segue sem este check." : "";
+      console.log(`${mark} **Identificadores em ingl\xEAs:** n\xE3o rodou: o cspell n\xE3o est\xE1 instalado em ${cspellDir}: ${setupHint}.${tail}
 `);
-      ok = false;
+      ok &&= o.cspellOptional;
     } else {
       const r = await Effect_exports.runPromise(result3({
-        block,
+        block: o.block,
         headSha: head3,
         fork: false,
         runUrl: "",
@@ -24374,16 +24526,38 @@ var check3 = async (checks, baseRef, headRef, block) => {
     }
   }
   if (checks.has("portao")) {
-    const { r, config } = await Effect_exports.runPromise(localGate({ base, head: head3, headRef: branch }));
+    const { r, config } = await Effect_exports.runPromise(localGate({ base, head: head3, headRef: o.branch }));
     console.log(summary(r, config));
     if (!r.ok && r.total !== void 0 && r.limite !== void 0 && r.total > r.limite) {
       const label = config?.tamanho?.labelAprovado ?? LABEL_APROVADO_PADRAO;
       console.log(`
 Daqui n\xE3o d\xE1 para ver as labels do PR: no GitHub, a label \xAB${label}\xBB aplicada por quem aprova libera o limite.`);
+      console.log(`Se o PR j\xE1 tem a label, envie com ${SKIP_SIZE}=1 git push (o identifiers continua rodando).`);
     }
     ok &&= r.ok;
   }
   return ok ? 0 : 1;
+};
+var prePush = async (remote, block) => {
+  if (process.stdin.isTTY) throw new Usage("pre-push l\xEA as refs do stdin, como o git manda num hook");
+  const branches = branchesToCheck(readFileSync3(0, "utf8"));
+  const skipSize = (process.env[SKIP_SIZE] ?? "") !== "";
+  const checks = new Set(skipSize ? ["identifiers"] : CHECKS);
+  if (skipSize && branches.length > 0) console.log(`${SKIP_SIZE}: a contagem do port\xE3o foi pulada; o identifiers roda.
+`);
+  let base = defaultBase();
+  if (remote !== void 0 && /^[\w.-]+$/.test(remote)) {
+    try {
+      base = git4("rev-parse", "--abbrev-ref", `${remote}/HEAD`);
+    } catch {
+    }
+  }
+  let status = 0;
+  for (const b of branches) {
+    console.log(`pre-push: ${b.branch} (${b.sha.slice(0, 7)})`);
+    status = Math.max(status, await check3(checks, base, b.sha, { branch: b.branch, block, cspellOptional: true }));
+  }
+  return status;
 };
 var main = async () => {
   const { values: values2, positionals } = parseArgs({
@@ -24400,10 +24574,23 @@ var main = async () => {
     return 0;
   }
   if (positionals.length === 1 && positionals[0] === "setup") return setup();
+  if (positionals.length === 1 && positionals[0] === "install") {
+    try {
+      install({ cwd: process.cwd(), env: process.env, setup, log: (line) => console.error(line) });
+    } catch (e) {
+      console.error(`local-checks install: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return 0;
+  }
+  process.chdir(git4("rev-parse", "--show-toplevel"));
+  const block = values2.block || readProjectConfig(process.cwd()).block === true;
+  if (positionals[0] === "pre-push" && positionals.length <= 3) return prePush(positionals[1], block);
   const unknownArgs = positionals.filter((p) => !CHECKS.includes(p));
   if (unknownArgs.length > 0) throw new Usage(`check desconhecido: ${unknownArgs.join(", ")}`);
   const checks = new Set(positionals.length === 0 ? CHECKS : positionals);
-  return check3(checks, values2.base ?? defaultBase(), values2.head ?? "HEAD", values2.block);
+  const headRef = values2.head ?? "HEAD";
+  const branch = headRef === "HEAD" ? git4("rev-parse", "--abbrev-ref", "HEAD") : headRef.replace(/^refs\/heads\//, "");
+  return check3(checks, values2.base ?? defaultBase(), headRef, { branch, block, cspellOptional: false });
 };
 try {
   process.exitCode = await main();
