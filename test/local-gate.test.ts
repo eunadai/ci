@@ -64,7 +64,7 @@ describe("localGate", () => {
       const t = repo()
       const base = t.commit({ ".github/portao.json": config({ tamanho: { limite: 10 } }), "src/a.ts": "a\n" })
       t.git("checkout", "-q", "-b", "feat/x")
-      const head = t.commit({ "src/b.ts": lines(8), "src/b.test.ts": lines(50), "docs/guia.md": lines(50), "src/a.ts": "a\nb\nc\nd\n" })
+      const head = t.commit({ "src/b.ts": lines(8), "src/b.test.ts": lines(50), "docs/guide.md": lines(50), "src/a.ts": "a\nb\nc\nd\n" })
       // The base moved after the branch: what it added is not the PR's.
       t.git("checkout", "-q", "main")
       const movedBase = t.commit({ "src/c.ts": lines(100) })
