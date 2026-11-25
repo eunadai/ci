@@ -123,6 +123,28 @@ describe("local-checks install: num clone de desenvolvimento", () => {
     expect(readFileSync(file, "utf8")).toBe(HOOK)
   })
 
+  it("reescreve o hook da v1.11/v1.12, que barrava o push de um worktree com o bin antigo", () => {
+    const root = clone()
+    const file = hookFile(root)
+    mkdirSync(join(file, ".."), { recursive: true })
+    // The hook of v1.11.0 and v1.12.0, as the older installs wrote it.
+    writeFileSync(file, [
+      "#!/bin/sh",
+      "# local-checks: gerado por «local-checks install» (eunadai/ci). O próximo install reescreve este arquivo.",
+      "# Confere cada branch enviada com os checks das Actions. Pular: git push --no-verify.",
+      "bin=node_modules/.bin/local-checks",
+      'if [ ! -x "$bin" ]; then',
+      '  echo "pre-push: o local-checks não está instalado neste checkout (rode o install); o push não foi conferido." >&2',
+      "  exit 0",
+      "fi",
+      'exec "$bin" pre-push "$@"',
+      "",
+    ].join("\n"))
+    expect(run(root).lines).toEqual([`local-checks install: pre-push ligado em ${file}.`])
+    expect(readFileSync(file, "utf8")).toBe(HOOK)
+    expect(HOOK).toContain("check desconhecido: pre-push")
+  })
+
   it("um pre-push de outra ferramenta fica como está, com aviso", () => {
     const root = clone()
     const file = hookFile(root)
