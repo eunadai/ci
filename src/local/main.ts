@@ -128,7 +128,7 @@ const prePush = async (remote: string | undefined, block: boolean): Promise<numb
   if (remote !== undefined) {
     try {
       // A remote-tracking ref only: a path such as ../repo.git would also resolve as `<path>/HEAD`.
-      base = git("rev-parse", "--verify", "--quiet", "--abbrev-ref", "--end-of-options", `refs/remotes/${remote}/HEAD`)
+      base = git("symbolic-ref", "--quiet", "--short", `refs/remotes/${remote}/HEAD`) || base
     } catch {
       // The remote has no HEAD here (or the push goes to a URL): the default base.
     }

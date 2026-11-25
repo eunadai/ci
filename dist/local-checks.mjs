@@ -24550,7 +24550,7 @@ var prePush = async (remote, block) => {
   let base = defaultBase();
   if (remote !== void 0) {
     try {
-      base = git4("rev-parse", "--verify", "--quiet", "--abbrev-ref", "--end-of-options", `refs/remotes/${remote}/HEAD`);
+      base = git4("symbolic-ref", "--quiet", "--short", `refs/remotes/${remote}/HEAD`) || base;
     } catch {
     }
   }
