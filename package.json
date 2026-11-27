@@ -13,7 +13,7 @@
     "check:dist": "npm run build && git diff --exit-code dist/"
   },
   "dependencies": {
-    "effect": "4.1.4"
+    "effect": "4.1.5"
   },
   "devDependencies": {
     "@effect/vitest": "4.1.4",
